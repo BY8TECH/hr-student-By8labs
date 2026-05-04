@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api, { attendanceAPI } from '../services/api';
 import axios from 'axios';
 import {
     Box,
@@ -80,10 +81,7 @@ const Dashboard = () => {
 
     const fetchStats = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('/api/dashboard/stats', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/dashboard/stats');
             setStats(response.data);
         } catch (error) {
             console.error('Error fetching stats:', error);
@@ -155,11 +153,9 @@ const Dashboard = () => {
     const handleRequestAccess = async () => {
         try {
             setRequestLoading(true);
-            const token = localStorage.getItem('token');
-            await axios.post(
-                '/api/access-requests',
-                { message: 'Requesting access to view my data (attendance, leaves, payroll)' },
-                { headers: { Authorization: `Bearer ${token}` } }
+            await api.post(
+                '/access-requests',
+                { message: 'Requesting access to view my data (attendance, leaves, payroll)' }
             );
             setMessage({
                 type: 'success',
@@ -177,10 +173,7 @@ const Dashboard = () => {
 
     const fetchEmployeeStats = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('/api/attendance/my-stats', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/attendance/my-stats');
             setEmployeeStats(response.data);
         } catch (error) {
             console.error('Error fetching employee stats:', error);
@@ -239,12 +232,8 @@ const Dashboard = () => {
 
     const fetchAccessRequests = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('/api/access-requests', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setAccessRequests(response.data);
-        } catch (error) {
+            const response = await api.get('/access-requests');
+            setAccessRequests(response.data || []);
             console.error('Error fetching access requests:', error);
         }
     };
@@ -252,12 +241,7 @@ const Dashboard = () => {
     const handleApproveRequest = async (requestId) => {
         try {
             setRequestActionLoading(requestId);
-            const token = localStorage.getItem('token');
-            await axios.put(
-                `/api/access-requests/${requestId}/approve`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await api.put(`/access-requests/${requestId}/approve`);
             setMessage({ type: 'success', text: 'Access request approved successfully' });
             fetchAccessRequests(); // Refresh list
             setRefreshTrigger(prev => prev + 1);
@@ -272,12 +256,7 @@ const Dashboard = () => {
         if (!window.confirm('Are you sure you want to reject this request?')) return;
         try {
             setRequestActionLoading(requestId);
-            const token = localStorage.getItem('token');
-            await axios.put(
-                `/api/access-requests/${requestId}/reject`,
-                { reason: 'HR rejected request' },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await api.put(`/access-requests/${requestId}/reject`, { reason: 'HR rejected request' });
             setMessage({ type: 'info', text: 'Access request rejected' });
             fetchAccessRequests(); // Refresh list
         } catch (error) {

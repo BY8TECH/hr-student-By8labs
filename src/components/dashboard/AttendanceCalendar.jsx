@@ -10,8 +10,7 @@ import {
     Chip
 } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
-import { attendanceAPI } from '../../services/api';
-import axios from 'axios';
+import api, { attendanceAPI } from '../../services/api';
 
 import { useAuth } from '../../context/AuthContext';
 
@@ -38,7 +37,13 @@ const AttendanceCalendar = ({ refreshTrigger }) => {
             if (user?.employeeId) {
                 // Employees (and HR with employee profile) see their own attendance
                 // Handle case where employeeId is an object (populated) or string
-                const empId = user.employeeId._id || user.employeeId;
+                const empId = typeof user.employeeId === 'object' ? user.employeeId._id : user.employeeId;
+                
+                if (!empId) {
+                    console.warn('User has employeeId property but it is empty');
+                    setAttendanceData([]);
+                    return;
+                }
 
                 attendanceRes = await attendanceAPI.getByEmployee(empId, {
                     month: month + 1,
@@ -64,13 +69,7 @@ const AttendanceCalendar = ({ refreshTrigger }) => {
 
             // Fetch holidays for current month
             try {
-                const token = localStorage.getItem('token');
-                const holidaysRes = await axios.get(
-                    `/api/holidays/${year}/${month + 1}`,
-                    {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }
-                );
+                const holidaysRes = await api.get(`/holidays/${year}/${month + 1}`);
                 setHolidays(holidaysRes.data || []);
             } catch (error) {
                 // Holidays optional - continue if endpoint doesn't exist yet
