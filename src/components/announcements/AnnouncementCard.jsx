@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { Edit, Delete, AccessTime, Person } from '@mui/icons-material';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://by8labs-backend.onrender.com';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://hrstudent-backend.onrender.com');
 
 const AnnouncementCard = ({ announcement, isHR, onEdit, onDelete }) => {
     const [imageDialogOpen, setImageDialogOpen] = React.useState(false);

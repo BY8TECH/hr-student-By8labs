@@ -391,7 +391,14 @@ function AttendanceControlPanel({ onRefresh }) {
             .finally(() => setLoadingStudents(false));
 
         courseAPI.getAllCourses()
-            .then(res => setCourses(res.data?.data || res.data || []))
+            .then(res => {
+                const data = res.data;
+                const list = (data.data || data.courses || data || []).map(c => ({
+                    _id: c.courseId || c._id,
+                    name: c.name || c.courseName || c.title || c.course || c._id,
+                })).filter(c => c.name);
+                setCourses(list);
+            })
             .catch(err => console.error('Failed to load courses for attendance dropdown.', err));
 
         dashboardAPI.getAdminAttendanceStats()
@@ -622,6 +629,7 @@ function AttendanceControlPanel({ onRefresh }) {
             color: "rgba(255, 255, 255, 0.7)", // Or any color you prefer
         }
     }}
+    onClick={handleMark}
 >
     {marking ? 'Saving...' : '✅ Submit Attendance'}
 </Button>
@@ -703,8 +711,13 @@ function AttendanceControlPanel({ onRefresh }) {
                     <Grid container spacing={2} alignItems="flex-end" mb={2}>
                         <Grid item xs={12} sm={3}>
                             <TextField select fullWidth size="small" label="👤 Student"
-                                value={listUserId} onChange={e => setListUserId(e.target.value)}>
-                                {students.map(s => <MenuItem key={s._id} value={s._id}>{s.name} ({s.studentId})</MenuItem>)}
+                                value={listUserId} onChange={e => setListUserId(e.target.value)}
+                                sx={{ '& .MuiInputBase-input': { color: 'inherit' } }}>
+                                {students.map(s => (
+                                    <MenuItem key={s._id} value={s._id}>
+                                        {s.name} ({s.studentId || 'No ID'})
+                                    </MenuItem>
+                                ))}
                             </TextField>
                         </Grid>
                         <Grid item xs={12} sm={2}>
@@ -728,8 +741,18 @@ function AttendanceControlPanel({ onRefresh }) {
                         <Grid item xs={12} sm={3}>
                             <Button variant="contained" fullWidth startIcon={<Search />}
                                 onClick={handleFilter} disabled={listLoading || !listUserId}
-                                sx={{ fontWeight: 700 }}>
-                                🔍 Filter
+                                sx={{ 
+                                    fontWeight: 700, 
+                                    height: '40px',
+                                    bgcolor: '#000', 
+                                    color: '#fff',
+                                    '&:hover': { bgcolor: '#333' },
+                                    '&.Mui-disabled': { 
+                                        bgcolor: 'rgba(0,0,0,0.12)', 
+                                        color: 'rgba(255,255,255,0.3)' 
+                                    }
+                                }}>
+                                Filter
                             </Button>
                         </Grid>
                     </Grid>
@@ -886,6 +909,20 @@ function AttendanceControlPanel({ onRefresh }) {
                     )}
                 </Box>
             )}
+
+            {/* Success Dialog */}
+            <Dialog open={!!success} onClose={() => setSuccess('')} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+                <Box sx={{ background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)', py: 3, textAlign: 'center' }}>
+                    <CheckCircle sx={{ fontSize: 60, color: '#fff' }} />
+                </Box>
+                <DialogContent sx={{ textAlign: 'center', pt: 3 }}>
+                    <Typography variant="h6" fontWeight={800} color="success.main" gutterBottom>Attendance Marked!</Typography>
+                    <Typography variant="body2" color="text.secondary">{success}</Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, justifyContent: 'center' }}>
+                    <Button variant="contained" color="success" onClick={() => setSuccess('')} fullWidth sx={{ borderRadius: 2, py: 1, fontWeight: 700 }}>Great!</Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }
@@ -1706,8 +1743,8 @@ function DocumentsPanel() {
 // ═══════════════════════════════════════════════════════════════════════════
 // Panel: Student Admission Form
 // ═══════════════════════════════════════════════════════════════════════════
-const ADMISSION_API = 'https://student-portal-znxr.onrender.com/api/admissions';
-const COURSES_API = 'https://student-portal-znxr.onrender.com/api/courses/categories/list';
+const ADMISSION_API = `${STUDENT_API_URL}/auth/register`;
+const COURSES_API = `${STUDENT_API_URL}/courses/categories/list`;
 
 function AdmissionFormPanel() {
     const [form, setForm] = useState({ name: '', classType: 'Online', course: '', phone: '', email: '', password: '' });
@@ -1722,11 +1759,11 @@ function AdmissionFormPanel() {
     // Fetch courses from student portal API on mount
     useEffect(() => {
         setCoursesLoading(true);
-        fetch(COURSES_API)
-            .then(r => r.json())
-            .then(data => {
+        courseAPI.getCategories()
+            .then(res => {
+                const data = res.data;
                 const list = (data.data || data.courses || data || []).map(c => ({
-                    _id: c._id,
+                    _id: c.courseId || c._id,
                     name: c.name || c.courseName || c.title || c.course || c._id,
                 })).filter(c => c.name);
                 setCourses(list);
@@ -1766,23 +1803,25 @@ function AdmissionFormPanel() {
         try {
             const payload = {
                 name: form.name.trim(),
-                phone: form.phone.trim(),
+                mobile: form.phone.trim(), // Changed 'phone' to 'mobile' to match backend
                 email: form.email.trim(),
                 password: form.password,
                 studentType: form.classType.toLowerCase(),
             };
 
             if (form.classType === 'Offline') {
-                payload.course = form.course;
+                payload.courseId = form.course;
+                const selectedCourse = courses.find(c => c._id === form.course);
+                payload.courseName = selectedCourse ? selectedCourse.name : '';
             }
 
-            const res = await fetch(ADMISSION_API, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+            const res = await portalAuthAPI.register({
+                ...payload,
+                confirmPassword: form.password // Added for backend validation
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || `Server error (${res.status})`);
+            const data = res.data;
+            // Axios throws on 4xx/5xx by default, but we check status to be safe if not throwing
+            if (res.status !== 200 && res.status !== 201) throw new Error(data.message || `Server error (${res.status})`);
             setSuccessData(data.data);
             setForm({ name: '', classType: 'Online', course: '', phone: '', email: '', password: '' });
             setSnack({ open: true, msg: data.message || 'Admission submitted successfully!', severity: 'success' });
@@ -1881,7 +1920,7 @@ function AdmissionFormPanel() {
                                         <em>{coursesLoading ? 'Loading courses…' : courses.length === 0 ? 'No courses available' : 'Choose a course…'}</em>
                                     </MenuItem>
                                     {courses.map(c => (
-                                        <MenuItem key={c._id} value={c.name}>
+                                        <MenuItem key={c._id} value={c._id}>
                                             <Box display="flex" alignItems="center" gap={1}>
                                                 <MenuBook sx={{ fontSize: 16, color: 'primary.main' }} />
                                                 {c.name}

@@ -35,7 +35,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { feedbackAPI } from '../../services/api';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://by8labs-backend.onrender.com';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://hrstudent-backend.onrender.com');
 
 const FeedbackCard = ({ feedback, onReact, onComment, onDelete, onRefresh }) => {
     const { user, isHR } = useAuth();

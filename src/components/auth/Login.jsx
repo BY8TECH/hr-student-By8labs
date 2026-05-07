@@ -90,7 +90,8 @@ const Login = () => {
                             variant="contained"
                             size="large"
                             disabled={loading}
-                            sx={{ mt: 3, mb: 2, py: 1.5 }}
+                            sx={{ color: '#ffffff',
+                                mt: 3, mb: 2, py: 1.5 }}
                         >
                             {loading ? 'Signing in...' : 'Sign In'}
                         </Button>
@@ -99,7 +100,7 @@ const Login = () => {
                     <Box sx={{ mt: 2, textAlign: 'center' }}>
                         <Typography variant="body2" sx={{ mt: 1 }}>
                             Don't have an account?{' '}
-                            <Link to="/register" style={{ color: '#000000', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>
+                            <Link to="/register" style={{ color: '#5b5454ff', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>
                                 Register here
                             </Link>
                         </Typography>

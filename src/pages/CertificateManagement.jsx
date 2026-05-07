@@ -639,10 +639,10 @@ export default function CertificateManagement() {
         <Box sx={{ p: { xs: 1, md: 2 } }}>
             {/* Page Header */}
             <Box sx={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                background: 'linear-gradient(135deg, #080a09ff 0%, #0a0b0bff 100%)',
                 borderRadius: 3, p: 3, mb: 3, color: 'white',
                 display: 'flex', alignItems: 'center', gap: 2,
-                boxShadow: '0 4px 20px rgba(16,185,129,0.35)'
+                boxShadow: '0 4px 20px rgba(59, 62, 61, 0.35)'
             }}>
                 <Box sx={{ bgcolor: 'rgba(255,255,255,0.2)', borderRadius: 2, p: 1.5, display: 'flex' }}>
                     <Description sx={{ fontSize: 32 }} />

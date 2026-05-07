@@ -42,6 +42,7 @@ studentApi.interceptors.response.use(
 // Auth
 export const portalAuthAPI = {
     login: (data) => studentApi.post('/auth/login', data),
+    register: (data) => studentApi.post('/auth/register', data),
 };
 
 // 1) Dashboard

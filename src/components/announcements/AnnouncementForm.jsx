@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { Close, CloudUpload, Delete, Image, VideoLibrary } from '@mui/icons-material';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://by8labs-backend.onrender.com';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://hrstudent-backend.onrender.com');
 
 const AnnouncementForm = ({ open, onClose, onSubmit, announcement = null }) => {
     const [formData, setFormData] = useState({

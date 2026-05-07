@@ -242,7 +242,7 @@ const AttendanceManagement = () => {
             )}
 
             {/* Current Date and Time */}
-            <Card sx={{ mb: 3, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+            <Card sx={{ mb: 3, background: 'linear-gradient(135deg, #030303ff 0%, #32323bff 100%)', color: 'white' }}>
                 <CardContent>
                     <Grid container spacing={2} alignItems="center">
                         <Grid item>
