@@ -11,7 +11,7 @@ import {
     WorkOutline, Close, Save, Search, Article, BadgeOutlined
 } from '@mui/icons-material';
 
-const API = import.meta.env.VITE_API_URL || '/api';
+const API = import.meta.env.VITE_API_URL || '/api/hr';
 
 /* ─────────────── helpers ─────────────── */
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';

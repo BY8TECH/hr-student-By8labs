@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://by8labs-backend.onrender.com/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://hrstudent-backend.onrender.com');
+const API_URL = import.meta.env.VITE_API_URL || `${BACKEND_URL}/api/hr`;
 
 // Create axios instance
 const api = axios.create({
