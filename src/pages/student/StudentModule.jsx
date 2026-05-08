@@ -2878,6 +2878,8 @@ function CertificateManagementPanel() {
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [allStudents, setAllStudents] = useState([]);
+    const [selectedUserId, setSelectedUserId] = useState('');
 
     const menu = [
         { id: 'dashboard', label: 'Dashboard', icon: <Dashboard fontSize="small" /> },
@@ -2903,7 +2905,43 @@ function CertificateManagementPanel() {
                 .catch(err => setMsg({ type: 'error', text: 'Failed to load completed certificates' }))
                 .finally(() => setLoading(false));
         }
+        
+        // Always fetch students list for manual issuance
+        adminStudentAPI.getAllStudents()
+            .then(res => setAllStudents((res.data?.data || []).filter(s => s.isApproved)))
+            .catch(err => console.error("Failed to load students", err));
     }, [subActive, refreshTrigger]);
+
+    // Auto-fill when student is selected in manual mode
+    useEffect(() => {
+        if (!selectedRequest && selectedUserId) {
+            // First, try to auto-fill from the local allStudents list for immediate feedback
+            const localStudent = allStudents.find(s => s._id === selectedUserId);
+            if (localStudent && localStudent.courseName) {
+                setForm(prev => ({
+                    ...prev,
+                    courseName: localStudent.courseName,
+                    duration: localStudent.duration || prev.duration || '3 Months'
+                }));
+            }
+
+            // Then fetch full details from backend to ensure we have the latest/complete info
+            setLoading(true);
+            certificateAPI.getStudentDetails(selectedUserId)
+                .then(res => {
+                    const data = res.data.data;
+                    if (data.courseName) {
+                        setForm(prev => ({
+                            ...prev,
+                            courseName: data.courseName,
+                            duration: data.duration || prev.duration || '3 Months'
+                        }));
+                    }
+                })
+                .catch(err => console.error('Failed to fetch student details', err))
+                .finally(() => setLoading(false));
+        }
+    }, [selectedUserId, allStudents, selectedRequest]);
 
     const getFileUrl = (url) => {
         if (!url) return '#';
@@ -2920,14 +2958,43 @@ function CertificateManagementPanel() {
         });
     };
 
-    const handleOpenModal = (req) => {
+    const handleOpenModal = (req = null) => {
         setSelectedRequest(req);
-        // Auto-fill from userId object if available, otherwise fallback to top-level or empty
-        setForm({
-            courseName: req.userId?.courseName || req.courseName || '',
-            content: '',
-            duration: req.userId?.courseDuration || req.duration || ''
-        });
+        if (req) {
+            const u = req.userId;
+            let uid = u?._id || u || '';
+            
+            // If userId is missing, try to find a student by name in our local list
+            if (!uid && req.studentName) {
+                const found = allStudents.find(s => s.name?.toLowerCase() === req.studentName.toLowerCase());
+                if (found) uid = found._id;
+            }
+
+            setSelectedUserId(uid);
+            
+            // Get course info from request, populated user, or local student
+            const localStudent = uid ? allStudents.find(s => s._id === uid) : null;
+            const course = req.courseName || u?.courseName || localStudent?.courseName || '';
+            const dur = req.duration || u?.courseDuration || localStudent?.duration || '';
+            
+            setForm({
+                courseName: course,
+                content: '',
+                duration: dur
+            });
+
+            // If course info is still missing, trigger a fetch
+            if (!course && uid) {
+                certificateAPI.getStudentDetails(uid).then(res => {
+                    if (res.data.data.courseName) {
+                        setForm(prev => ({ ...prev, courseName: res.data.data.courseName }));
+                    }
+                });
+            }
+        } else {
+            setSelectedUserId('');
+            setForm({ courseName: '', content: '', duration: '' });
+        }
         setModalOpen(true);
     };
 
@@ -2941,7 +3008,8 @@ function CertificateManagementPanel() {
         setSaving(true);
         try {
             await certificateAPI.generate({
-                requestId: selectedRequest._id,
+                requestId: selectedRequest?._id,
+                userId: selectedUserId,
                 courseName: form.courseName,
                 content: form.content,
                 duration: form.duration
@@ -3060,6 +3128,16 @@ function CertificateManagementPanel() {
                         {m.label}
                     </Button>
                 ))}
+                <Box sx={{ flexGrow: 1 }} />
+                <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<VerifiedUser />}
+                    onClick={() => handleOpenModal()}
+                    sx={{ borderRadius: 2, textTransform: 'none', px: 2, bgcolor: '#00bfa5', '&:hover': { bgcolor: '#00897b' } }}
+                >
+                    Issue New Certificate
+                </Button>
             </Box>
 
             <Divider sx={{ mb: 3 }} />
@@ -3211,13 +3289,28 @@ function CertificateManagementPanel() {
                     )}
                     <Grid container spacing={2}>
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Student Name:</Typography>
-                            <TextField
-                                fullWidth size="small"
-                                value={selectedRequest?.studentName || ''}
-                                InputProps={{ readOnly: true }}
-                                sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}
-                            />
+                            <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Select Student:</Typography>
+                            {selectedRequest ? (
+                                <TextField
+                                    fullWidth size="small"
+                                    value={selectedRequest?.studentName || selectedRequest?.userId?.name || ''}
+                                    InputProps={{ readOnly: true }}
+                                    sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}
+                                />
+                            ) : (
+                                <Autocomplete
+                                    size="small"
+                                    options={allStudents}
+                                    getOptionLabel={(option) => `${option.name} (${option.studentId || option.email})`}
+                                    value={allStudents.find(s => s._id === selectedUserId) || null}
+                                    onChange={(event, newValue) => {
+                                        setSelectedUserId(newValue ? newValue._id : '');
+                                    }}
+                                    renderInput={(params) => (
+                                        <TextField {...params} placeholder="Search by name or student ID..." />
+                                    )}
+                                />
+                            )}
                         </Grid>
                         <Grid item xs={12}>
                             <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Course Name:</Typography>
