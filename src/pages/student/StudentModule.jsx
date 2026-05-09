@@ -6,7 +6,7 @@ import {
     List as MuiList, ListItem, ListItemButton, ListItemIcon, ListItemText,
     Tooltip, Card, CardContent, InputAdornment, MenuItem,
     Dialog, DialogTitle, DialogContent, DialogActions, LinearProgress,
-    Autocomplete, FormControl, FormLabel, RadioGroup, Radio, FormControlLabel
+    Autocomplete, FormControl, FormLabel, RadioGroup, Radio, FormControlLabel, Switch
 } from '@mui/material';
 import {
     Dashboard, PeopleOutlined, MenuBook, EventAvailable, EmojiEvents,
@@ -31,7 +31,7 @@ const MODULES = [
     { id: 'studentList', label: 'Student List', icon: <HowToReg /> },
     { id: 'admission', label: 'Admission Form', icon: <PersonSearch /> },
     { id: 'courses', label: 'Courses', icon: <MenuBook /> },
-    { id: 'documents', label: 'Upload Course', icon: <CloudUpload /> },
+    { id: 'documents', label: 'Upload Course Materials', icon: <CloudUpload /> },
     { id: 'attendance', label: 'Attendance', icon: <EventAvailable /> },
     // { id: 'leaderboard', label: 'Leaderboard', icon: <EmojiEvents /> },
     // { id: 'notifications', label: 'Notifications', icon: <NotificationsActive /> },
@@ -1623,11 +1623,28 @@ function DocumentsPanel() {
         }
     };
 
-    const getFileUrl = (url) => {
-        if (!url) return '#';
-        if (url.startsWith('http')) return url;
-        const base = STUDENT_API_URL.replace('/api', '');
-        return `${base}/${url.startsWith('/') ? url.slice(1) : url}`;
+    const handleDownload = async (doc) => {
+        const docId = doc.documentId || doc._id;
+        if (!docId) return setMsg({ type: 'error', text: 'Invalid document ID' });
+
+        try {
+            setMsg({ type: 'info', text: 'Starting download...' });
+            const res = await documentAPI.downloadDocument(docId);
+            
+            const blob = new Blob([res.data], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', doc.fileName || 'document.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            setMsg({ type: 'success', text: 'Document downloaded successfully!' });
+        } catch (err) {
+            console.error('Download error:', err);
+            setMsg({ type: 'error', text: 'Failed to download document' });
+        }
     };
 
     return (
@@ -1721,9 +1738,7 @@ function DocumentsPanel() {
                                                 size="small"
                                                 variant="outlined"
                                                 startIcon={<FileDownload fontSize="small" />}
-                                                href={getFileUrl(doc.fileUrl)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                                onClick={() => handleDownload(doc)}
                                                 sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
                                             >
                                                 Download
@@ -2874,7 +2889,7 @@ function CertificateManagementPanel() {
     const [searchTerm, setSearchTerm] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState(null);
-    const [form, setForm] = useState({ courseName: '', content: '', duration: '' });
+    const [form, setForm] = useState({ courseName: '', content: '', duration: '', isManual: false, studentName: '' });
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -3010,9 +3025,7 @@ function CertificateManagementPanel() {
             await certificateAPI.generate({
                 requestId: selectedRequest?._id,
                 userId: selectedUserId,
-                courseName: form.courseName,
-                content: form.content,
-                duration: form.duration
+                ...form
             });
             setMsg({ type: 'success', text: 'Certificate Generated Successfully!' });
             setModalOpen(false);
@@ -3287,15 +3300,40 @@ function CertificateManagementPanel() {
                     {msg.text && msg.type === 'error' && (
                         <Alert severity="error" sx={{ mb: 2 }}>{msg.text}</Alert>
                     )}
+                    <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">
+                            Use manual mode to issue certificates for guest students or offline records.
+                        </Typography>
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={form.isManual}
+                                    onChange={(e) => setForm({ ...form, isManual: e.target.checked })}
+                                    size="small"
+                                />
+                            }
+                            label={<Typography variant="caption" fontWeight={700}>Manual Mode</Typography>}
+                        />
+                    </Box>
+
                     <Grid container spacing={2}>
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Select Student:</Typography>
+                            <Typography variant="subtitle2" fontWeight={700} mb={0.5}>
+                                {form.isManual ? 'Student Name (Manual):' : 'Select Student:'}
+                            </Typography>
                             {selectedRequest ? (
                                 <TextField
                                     fullWidth size="small"
                                     value={selectedRequest?.studentName || selectedRequest?.userId?.name || ''}
                                     InputProps={{ readOnly: true }}
                                     sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}
+                                />
+                            ) : form.isManual ? (
+                                <TextField
+                                    fullWidth size="small"
+                                    value={form.studentName}
+                                    onChange={(e) => setForm({ ...form, studentName: e.target.value })}
+                                    placeholder="Enter student's full name..."
                                 />
                             ) : (
                                 <Autocomplete
@@ -3331,12 +3369,19 @@ function CertificateManagementPanel() {
                             />
                         </Grid>
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Content / Description:</Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                <Typography variant="subtitle2" fontWeight={700}>Content / Description:</Typography>
+                                <Typography variant="caption" color={form.content.length > 650 ? 'error.main' : 'text.secondary'}>
+                                    {form.content.length} / 650
+                                </Typography>
+                            </Box>
                             <TextField
                                 fullWidth size="small"
-                                multiline rows={3}
+                                multiline rows={4}
                                 value={form.content}
                                 onChange={(e) => setForm({ ...form, content: e.target.value })}
+                                error={form.content.length > 650}
+                                helperText={form.content.length > 650 ? "Maximum 650 characters allowed." : ""}
                                 placeholder="Enter the certificate content or achievement description..."
                             />
                         </Grid>
@@ -3349,7 +3394,7 @@ function CertificateManagementPanel() {
                     <Button
                         onClick={handleGenerate}
                         variant="contained"
-                        disabled={saving}
+                        disabled={saving || form.content.length > 650 || !form.content.trim()}
                         startIcon={saving && <CircularProgress size={16} color="inherit" />}
                     >
                         {saving ? 'Generating...' : 'Generate Certificate'}

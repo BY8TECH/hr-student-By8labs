@@ -142,7 +142,8 @@ export const documentAPI = {
     getAllAdminDocuments: () => studentApi.get('/documents/admin/all'),
     uploadDocument: (data) => studentApi.post('/documents/upload', data, {
         headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    }),
+    downloadDocument: (id) => studentApi.get(`/documents/download/${id}`, { responseType: 'blob' })
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
