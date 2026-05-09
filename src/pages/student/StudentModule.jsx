@@ -1321,14 +1321,30 @@ function NotificationsPanel() {
         fetchNotifications();
     }, []);
 
-    if (loading) return <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>;
+    const handleClearAll = async () => {
+        if (!window.confirm('Are you sure you want to clear all notifications?')) return;
+        setLoading(true);
+        try {
+            await notificationAPI.clearAllNotifications();
+            setNotifs([]);
+        } catch (err) {
+            setError('Failed to clear notifications.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading && notifs.length === 0) return <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>;
     if (error) return <Alert severity="error">{error}</Alert>;
 
     return (
         <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6" fontWeight={700}>Notifications</Typography>
-                <Button variant="outlined" size="small" startIcon={<Refresh />} onClick={fetchNotifications} disabled={loading}>Refresh</Button>
+                <Box display="flex" gap={1}>
+                    <Button variant="outlined" color="error" size="small" onClick={handleClearAll} disabled={loading || notifs.length === 0}>Clear All</Button>
+                    <Button variant="outlined" size="small" startIcon={<Refresh />} onClick={fetchNotifications} disabled={loading}>Refresh</Button>
+                </Box>
             </Box>
             {notifs.length === 0
                 ? <Typography color="text.secondary">No notifications.</Typography>

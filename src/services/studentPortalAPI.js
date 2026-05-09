@@ -106,6 +106,7 @@ export const leaderboardAPI = {
 // 6) Notifications
 export const notificationAPI = {
     getNotifications: () => studentApi.get('/notifications'),
+    clearAllNotifications: () => studentApi.delete('/notifications/clear-all'),
 };
 
 // 7) Enrollments
