@@ -25,7 +25,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { emailsAPI } from '../../services/api';
 import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
-import { Visibility, VisibilityOff, LockPerson } from '@mui/icons-material';
+import { Visibility, VisibilityOff, LockPerson, Close } from '@mui/icons-material';
 
 const ExternalInboxView = () => {
     const { user } = useAuth();
@@ -275,7 +275,19 @@ const ExternalInboxView = () => {
                     sx: { borderRadius: 2, p: 1 }
                 }}
             >
-                <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
+                <DialogTitle sx={{ textAlign: 'center', pb: 1, position: 'relative' }}>
+                    <IconButton
+                        aria-label="close"
+                        onClick={() => setAuthOpen(false)}
+                        sx={{
+                            position: 'absolute',
+                            right: 8,
+                            top: 8,
+                            color: (theme) => theme.palette.grey[500],
+                        }}
+                    >
+                        <Close />
+                    </IconButton>
                     <LockPerson color="primary" sx={{ fontSize: 40, mb: 1 }} />
                     <Typography variant="h5" fontWeight="bold">Unlock Inbox</Typography>
                 </DialogTitle>
@@ -328,7 +340,7 @@ const ExternalInboxView = () => {
                             variant="contained" 
                             size="large"
                             disabled={loading || !emailPassword}
-                            sx={{ fontWeight: 'bold' }}
+                            sx={{ fontWeight: 'bold',color: '#ffffff !important' }}
                         >
                             {loading ? <CircularProgress size={24} /> : 'Connect to Inbox'}
                         </Button>
