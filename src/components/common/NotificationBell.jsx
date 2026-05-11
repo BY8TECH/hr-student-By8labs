@@ -13,7 +13,7 @@ import {
     Chip,
     Tooltip
 } from '@mui/material';
-import { Notifications, NotificationsNone, Campaign, Feedback, Close } from '@mui/icons-material';
+import { Notifications, NotificationsNone, Campaign, Feedback, Close, BadgeOutlined, Article, EventBusy } from '@mui/icons-material';
 import axios from 'axios';
 
 const API = '/api';
@@ -39,10 +39,11 @@ const NotificationBell = () => {
             if (!token) return;
             const headers = { Authorization: `Bearer ${token}` };
 
-            // Fetch announcements and feedback in parallel
-            const [annoRes, feedRes] = await Promise.allSettled([
+            // Fetch announcements, feedback, and HR notifications in parallel
+            const [annoRes, feedRes, hrNotifRes] = await Promise.allSettled([
                 axios.get(`${API}/announcements?limit=15`, { headers }),
                 axios.get(`${API}/feedback?limit=15`, { headers }),
+                axios.get(`${API}/hr/notifications?limit=15`, { headers }),
             ]);
 
             const announcements = (
@@ -73,12 +74,35 @@ const NotificationBell = () => {
                 navPath: '/feedback',
             }));
 
-            const emails = [];
+            const hrNotifications = (
+                hrNotifRes.status === 'fulfilled'
+                    ? (hrNotifRes.value.data || [])
+                    : []
+            ).map(n => ({
+                _id: n._id,
+                type: n.type.toLowerCase(),
+                title: n.title,
+                body: n.message,
+                author: 'System',
+                createdAt: n.createdAt,
+                navPath: n.actionUrl || null,
+                priority: n.priority
+            }));
 
             // Merge and sort newest first
-            const merged = [...announcements, ...feedbacks, ...emails].sort(
+            const merged = [...announcements, ...feedbacks, ...hrNotifications].sort(
                 (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
             );
+
+            // Check for new notifications to play sound
+            const lastFetchedCount = notifications.length;
+            if (lastFetchedCount > 0 && merged.length > lastFetchedCount) {
+                // Check if the newest notification is actually new (not just a re-fetch)
+                const isNew = !notifications.some(existing => existing._id === merged[0]._id);
+                if (isNew) {
+                    playNotificationSound();
+                }
+            }
 
             setNotifications(merged);
 
@@ -93,11 +117,20 @@ const NotificationBell = () => {
         }
     };
 
+    const playNotificationSound = () => {
+        try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+            audio.play().catch(e => console.log('Audio play blocked by browser'));
+        } catch (e) {
+            console.error('Failed to play sound:', e);
+        }
+    };
+
     useEffect(() => {
         fetchAll();
-        const interval = setInterval(fetchAll, 60000);
+        const interval = setInterval(fetchAll, 30000); // Check every 30 seconds
         return () => clearInterval(interval);
-    }, []);
+    }, [notifications.length]); // Re-run if length changes to help sound logic
 
     const handleOpen = (e) => {
         setAnchorEl(e.currentTarget);
@@ -112,7 +145,7 @@ const NotificationBell = () => {
         if (notif.navPath) {
             // Append the item id as a hash so the target page can auto-scroll to it
             const rawId = notif._id?.toString().replace(/^email-/, '');
-            navigate(`${notif.navPath}#${rawId}`);
+            navigate(`${notif.navPath}${notif.navPath.includes('#') ? '' : '#' + rawId}`);
         }
     };
 
@@ -137,23 +170,33 @@ const NotificationBell = () => {
     const visibleNotifications = notifications.filter(n => !dismissed.has(n._id));
     const annoCount = visibleNotifications.filter(n => n.type === 'announcement').length;
     const feedCount = visibleNotifications.filter(n => n.type === 'feedback').length;
+    const hrCount = visibleNotifications.length - annoCount - feedCount;
 
     const getTypeIcon = (type) => {
         if (type === 'announcement') return <Campaign sx={{ fontSize: 14, color: 'primary.main' }} />;
         if (type === 'feedback') return <Feedback sx={{ fontSize: 14, color: 'warning.main' }} />;
-        return <Email sx={{ fontSize: 14, color: 'success.main' }} />;
+        if (type === 'studentregistration') return <BadgeOutlined sx={{ fontSize: 14, color: 'success.main' }} />;
+        if (type === 'certificaterequest') return <Article sx={{ fontSize: 14, color: 'info.main' }} />;
+        if (type === 'leaverequest') return <EventBusy sx={{ fontSize: 14, color: 'error.main' }} />;
+        return <Notifications sx={{ fontSize: 14, color: 'primary.main' }} />;
     };
 
     const getTypeColor = (type) => {
         if (type === 'announcement') return 'primary';
         if (type === 'feedback') return 'warning';
-        return 'success';
+        if (type === 'studentregistration') return 'success';
+        if (type === 'certificaterequest') return 'info';
+        if (type === 'leaverequest') return 'error';
+        return 'primary';
     };
 
     const getBorderColor = (type) => {
         if (type === 'announcement') return 'primary.main';
         if (type === 'feedback') return 'warning.main';
-        return 'success.main';
+        if (type === 'studentregistration') return 'success.main';
+        if (type === 'certificaterequest') return 'info.main';
+        if (type === 'leaverequest') return 'error.main';
+        return 'primary.main';
     };
 
     return (

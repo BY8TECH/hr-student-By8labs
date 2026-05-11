@@ -159,6 +159,7 @@ export const certificateAPI = {
     getAllCertificates: ()     => studentApi.get('/certificates/all'),
     getCertificatesByUserId: (userId) => studentApi.get(`/certificates/user/${userId}`),
     getStudentDetails: (userId) => studentApi.get(`/certificates/student-details/${userId}`),
+    requestCertificate: (data) => studentApi.post('/certificates/request', data),
 };
 
 export default studentApi;
