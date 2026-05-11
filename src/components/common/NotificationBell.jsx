@@ -80,13 +80,13 @@ const NotificationBell = () => {
                     : []
             ).map(n => ({
                 _id: n._id,
-                type: n.type.toLowerCase(),
-                title: n.title,
-                body: n.message,
+                type: (n.type || 'general').toLowerCase(),
+                title: n.title || 'System Alert',
+                body: n.message || '',
                 author: 'System',
-                createdAt: n.createdAt,
+                createdAt: n.createdAt || new Date().toISOString(),
                 navPath: n.actionUrl || null,
-                priority: n.priority
+                priority: n.priority || 'Medium'
             }));
 
             // Merge and sort newest first
@@ -258,7 +258,17 @@ const NotificationBell = () => {
                             sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', '& .MuiChip-label': { px: 0.5 } }}
                             title="Feedback"
                         />
+                        <Chip
+                            icon={<Notifications sx={{ color: 'white !important', fontSize: 14 }} />}
+                            label={hrCount}
+                            size="small"
+                            sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', '& .MuiChip-label': { px: 0.5 } }}
+                            title="System Alerts"
+                        />
                     </Box>
+                    <IconButton size="small" onClick={fetchAll} sx={{ color: 'white', ml: 1 }}>
+                        <NotificationsNone sx={{ fontSize: 18 }} />
+                    </IconButton>
                 </Box>
 
                 {/* Notification List */}
