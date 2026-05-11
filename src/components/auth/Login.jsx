@@ -90,8 +90,11 @@ const Login = () => {
                             variant="contained"
                             size="large"
                             disabled={loading}
-                            sx={{ color: '#ffffff',
-                                mt: 3, mb: 2, py: 1.5 }}
+                            sx={{ 
+                                mt: 3, mb: 2, py: 1.5,
+                                color: '#ffffff !important', // Force white text
+                                fontWeight: 700
+                            }}
                         >
                             {loading ? 'Signing in...' : 'Sign In'}
                         </Button>

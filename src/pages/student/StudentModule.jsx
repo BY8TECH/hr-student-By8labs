@@ -1548,6 +1548,7 @@ function PortalConnect({ onConnect }) {
                         type="submit" variant="contained" fullWidth
                         disabled={loading}
                         startIcon={loading ? <CircularProgress size={18} color="inherit" /> : null}
+                        sx={{ color: '#ffffff !important', fontWeight: 700 }}
                     >
                         {loading ? 'Connecting…' : 'Connect'}
                     </Button>
