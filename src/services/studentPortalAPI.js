@@ -19,7 +19,8 @@ const studentApi = axios.create({
 // Attach student portal token (not HR token)
 studentApi.interceptors.request.use(
     (config) => {
-        const token = getStudentPortalToken();
+        // Try student portal token first, then fallback to main token (HR)
+        const token = getStudentPortalToken() || localStorage.getItem('token');
         if (token) config.headers.Authorization = `Bearer ${token}`;
         return config;
     },
