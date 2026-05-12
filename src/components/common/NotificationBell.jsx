@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     IconButton,
@@ -13,8 +13,20 @@ import {
     Chip,
     Tooltip
 } from '@mui/material';
-import { Notifications, NotificationsNone, Campaign, Feedback, Close, BadgeOutlined, Article, EventBusy } from '@mui/icons-material';
+import { 
+    Notifications, 
+    NotificationsNone, 
+    Campaign, 
+    Feedback, 
+    Close, 
+    BadgeOutlined, 
+    Article, 
+    EventBusy,
+    EmailOutlined,
+    LockOpen
+} from '@mui/icons-material';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 
 const API = '/api';
 const STORAGE_KEY = 'notif_last_seen';
@@ -32,17 +44,29 @@ const NotificationBell = () => {
         }
     });
     const navigate = useNavigate();
+    const socketRef = useRef(null);
+
+    const playNotificationSound = () => {
+        try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+            audio.play().catch(e => console.log('Audio play blocked by browser. Please interact with the page first.'));
+        } catch (e) {
+            console.error('Failed to play sound:', e);
+        }
+    };
 
     const fetchAll = async () => {
         try {
             const token = localStorage.getItem('token');
+            const userStr = localStorage.getItem('user');
             if (!token) return;
             const headers = { Authorization: `Bearer ${token}` };
+            const user = userStr ? JSON.parse(userStr) : null;
 
             // Fetch announcements, feedback, and HR notifications in parallel
             const [annoRes, feedRes, hrNotifRes] = await Promise.allSettled([
-                axios.get(`${API}/announcements?limit=15`, { headers }),
-                axios.get(`${API}/feedback?limit=15`, { headers }),
+                axios.get(`${API}/hr/announcements?limit=15`, { headers }),
+                axios.get(`${API}/hr/feedback?limit=15`, { headers }),
                 axios.get(`${API}/hr/notifications?limit=15`, { headers }),
             ]);
 
@@ -94,16 +118,6 @@ const NotificationBell = () => {
                 (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
             );
 
-            // Check for new notifications to play sound
-            const lastFetchedCount = notifications.length;
-            if (lastFetchedCount > 0 && merged.length > lastFetchedCount) {
-                // Check if the newest notification is actually new (not just a re-fetch)
-                const isNew = !notifications.some(existing => existing._id === merged[0]._id);
-                if (isNew) {
-                    playNotificationSound();
-                }
-            }
-
             setNotifications(merged);
 
             const lastSeen = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
@@ -117,20 +131,47 @@ const NotificationBell = () => {
         }
     };
 
-    const playNotificationSound = () => {
-        try {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
-            audio.play().catch(e => console.log('Audio play blocked by browser'));
-        } catch (e) {
-            console.error('Failed to play sound:', e);
-        }
-    };
-
     useEffect(() => {
         fetchAll();
-        const interval = setInterval(fetchAll, 30000); // Check every 30 seconds
+        
+        // Initialize Socket.io
+        const token = localStorage.getItem('token');
+        const userStr = localStorage.getItem('user');
+        if (token && userStr) {
+            const user = JSON.parse(userStr);
+            const socket = io(window.location.origin, {
+                auth: { token }
+            });
+
+            socketRef.current = socket;
+
+            socket.on('connect', () => {
+                console.log('🔗 Connected to notification socket');
+                socket.emit('join', user._id);
+                if (user.role === 'HR') {
+                    socket.emit('joinHR');
+                }
+            });
+
+            socket.on('newNotification', (notif) => {
+                console.log('🔔 New real-time notification:', notif);
+                playNotificationSound();
+                fetchAll(); // Refresh list
+                
+                // If the popover is closed, increment unread count manually for instant feedback
+                if (!anchorEl) {
+                    setUnreadCount(prev => prev + 1);
+                }
+            });
+
+            return () => {
+                socket.disconnect();
+            };
+        }
+
+        const interval = setInterval(fetchAll, 60000); // Keep polling as fallback
         return () => clearInterval(interval);
-    }, [notifications.length]); // Re-run if length changes to help sound logic
+    }, []);
 
     const handleOpen = (e) => {
         setAnchorEl(e.currentTarget);
@@ -170,33 +211,88 @@ const NotificationBell = () => {
     const visibleNotifications = notifications.filter(n => !dismissed.has(n._id));
     const annoCount = visibleNotifications.filter(n => n.type === 'announcement').length;
     const feedCount = visibleNotifications.filter(n => n.type === 'feedback').length;
-    const hrCount = visibleNotifications.length - annoCount - feedCount;
+    const sysCount = visibleNotifications.length - annoCount - feedCount;
 
-    const getTypeIcon = (type) => {
-        if (type === 'announcement') return <Campaign sx={{ fontSize: 14, color: 'primary.main' }} />;
-        if (type === 'feedback') return <Feedback sx={{ fontSize: 14, color: 'warning.main' }} />;
-        if (type === 'studentregistration') return <BadgeOutlined sx={{ fontSize: 14, color: 'success.main' }} />;
-        if (type === 'certificaterequest') return <Article sx={{ fontSize: 14, color: 'info.main' }} />;
-        if (type === 'leaverequest') return <EventBusy sx={{ fontSize: 14, color: 'error.main' }} />;
-        return <Notifications sx={{ fontSize: 14, color: 'primary.main' }} />;
-    };
+    const getNotificationInfo = (type) => {
+        const t = type?.toUpperCase();
+        
+        // Default values
+        let info = {
+            icon: <Notifications sx={{ fontSize: 14, color: 'primary.main' }} />,
+            color: 'primary',
+            label: 'System',
+            // source: 'Portal',
+            borderColor: 'primary.main'
+        };
 
-    const getTypeColor = (type) => {
-        if (type === 'announcement') return 'primary';
-        if (type === 'feedback') return 'warning';
-        if (type === 'studentregistration') return 'success';
-        if (type === 'certificaterequest') return 'info';
-        if (type === 'leaverequest') return 'error';
-        return 'primary';
-    };
+        if (t?.startsWith('SP_')) {
+            info.source = 'Student Portal';
+            const subType = t.replace('SP_', '');
+            if (subType === 'LEAVEREQUEST') {
+                info.icon = <EventBusy sx={{ fontSize: 14, color: 'error.main' }} />;
+                info.color = 'error';
+                info.label = 'Leave Request';
+                info.borderColor = 'error.main';
+            } else if (subType === 'CERTIFICATEREQUEST') {
+                info.icon = <Article sx={{ fontSize: 14, color: 'info.main' }} />;
+                info.color = 'info';
+                info.label = 'Certificate Request';
+                info.borderColor = 'info.main';
+            } else if (subType === 'REGISTRATION') {
+                info.icon = <BadgeOutlined sx={{ fontSize: 14, color: 'success.main' }} />;
+                info.color = 'success';
+                info.label = 'Registration';
+                info.borderColor = 'success.main';
+            }
+        } else if (t?.startsWith('HR_')) {
+            info.source = 'HR Management';
+            const subType = t.replace('HR_', '');
+            if (subType === 'LEAVEREQUEST') {
+                info.icon = <EventBusy sx={{ fontSize: 14, color: 'error.main' }} />;
+                info.color = 'error';
+                info.label = 'Leave Request';
+                info.borderColor = 'error.main';
+            } else if (subType === 'REGISTRATION') {
+                info.icon = <BadgeOutlined sx={{ fontSize: 14, color: 'success.main' }} />;
+                info.color = 'success';
+                info.label = 'User Registration';
+                info.borderColor = 'success.main';
+            } else if (subType === 'FEEDBACK') {
+                info.icon = <Feedback sx={{ fontSize: 14, color: 'warning.main' }} />;
+                info.color = 'warning';
+                info.label = 'Feedback';
+                info.borderColor = 'warning.main';
+            } else if (subType === 'ACCESSREQUEST') {
+                info.icon = <LockOpen sx={{ fontSize: 14, color: 'warning.main' }} />;
+                info.color = 'warning';
+                info.label = 'Access Request';
+                info.borderColor = 'warning.main';
+            } else if (subType === 'EMAIL') {
+                info.icon = <EmailOutlined sx={{ fontSize: 14, color: 'secondary.main' }} />;
+                info.color = 'secondary';
+                info.label = 'Email';
+                info.borderColor = 'secondary.main';
+            }
+        } else {
+            // Legacy/General mapping
+            const low = t?.toLowerCase() || '';
+            if (low === 'announcement') {
+                info.icon = <Campaign sx={{ fontSize: 14, color: 'primary.main' }} />;
+                info.label = 'Announcement';
+            } else if (low === 'feedback') {
+                info.icon = <Feedback sx={{ fontSize: 14, color: 'warning.main' }} />;
+                info.color = 'warning';
+                info.label = 'Feedback';
+                info.borderColor = 'warning.main';
+            } else if (low.includes('email')) {
+                info.icon = <EmailOutlined sx={{ fontSize: 14, color: 'secondary.main' }} />;
+                info.color = 'secondary';
+                info.label = 'Email';
+                info.borderColor = 'secondary.main';
+            }
+        }
 
-    const getBorderColor = (type) => {
-        if (type === 'announcement') return 'primary.main';
-        if (type === 'feedback') return 'warning.main';
-        if (type === 'studentregistration') return 'success.main';
-        if (type === 'certificaterequest') return 'info.main';
-        if (type === 'leaverequest') return 'error.main';
-        return 'primary.main';
+        return info;
     };
 
     return (
@@ -219,7 +315,7 @@ const NotificationBell = () => {
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 PaperProps={{
                     sx: {
-                        width: 400,
+                        width: 420,
                         maxHeight: 520,
                         borderRadius: 2,
                         boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
@@ -260,7 +356,7 @@ const NotificationBell = () => {
                         />
                         <Chip
                             icon={<Notifications sx={{ color: 'white !important', fontSize: 14 }} />}
-                            label={hrCount}
+                            label={sysCount}
                             size="small"
                             sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', '& .MuiChip-label': { px: 0.5 } }}
                             title="System Alerts"
@@ -282,87 +378,102 @@ const NotificationBell = () => {
                         </Box>
                     ) : (
                         <List dense disablePadding>
-                            {visibleNotifications.map((n, i) => (
-                                <React.Fragment key={`${n.type}-${n._id || i}`}>
-                                    <ListItem
-                                        alignItems="flex-start"
-                                        onClick={() => handleNotificationClick(n)}
-                                        sx={{
-                                            py: 1.5, px: 2,
-                                            cursor: 'pointer',
-                                            borderLeft: '3px solid',
-                                            borderLeftColor: getBorderColor(n.type),
-                                            '&:hover': { bgcolor: 'action.hover' },
-                                            pr: 5, // make room for close button
-                                            position: 'relative',
-                                        }}
-                                    >
-                                        <ListItemText
-                                            primary={
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-                                                    {getTypeIcon(n.type)}
-                                                    <Chip
-                                                        label={n.type === 'announcement' ? 'Announcement' : n.type === 'feedback' ? 'Feedback' : 'Email'}
-                                                        size="small"
-                                                        color={getTypeColor(n.type)}
-                                                        sx={{ height: 18, fontSize: '0.65rem' }}
-                                                    />
-                                                    <Typography
-                                                        component="span"
-                                                        variant="subtitle2"
-                                                        fontWeight={600}
-                                                        noWrap
-                                                        sx={{ flex: 1 }}
-                                                    >
-                                                        {n.title}
-                                                    </Typography>
-                                                </Box>
-                                            }
-                                            secondaryTypographyProps={{ component: 'span' }}
-                                            secondary={
-                                                <>
-                                                    <Typography
-                                                        component="span"
-                                                        display="block"
-                                                        variant="body2"
-                                                        color="text.secondary"
-                                                        sx={{
-                                                            display: '-webkit-box',
-                                                            WebkitLineClamp: 2,
-                                                            WebkitBoxOrient: 'vertical',
-                                                            overflow: 'hidden',
-                                                            mb: 0.25,
-                                                        }}
-                                                    >
-                                                        {n.body}
-                                                    </Typography>
-                                                    <Typography component="span" display="block" variant="caption" color="text.disabled">
-                                                        {n.author} · {formatTime(n.createdAt)}
-                                                    </Typography>
-                                                </>
-                                            }
-                                        />
-                                        {/* Close/dismiss button */}
-                                        <Tooltip title="Dismiss">
-                                            <IconButton
-                                                size="small"
-                                                onClick={(e) => handleDismiss(e, n._id)}
-                                                sx={{
-                                                    position: 'absolute',
-                                                    top: 8,
-                                                    right: 4,
-                                                    opacity: 0.5,
-                                                    '&:hover': { opacity: 1, bgcolor: 'error.light', color: 'white' },
-                                                    p: 0.25,
-                                                }}
-                                            >
-                                                <Close sx={{ fontSize: 14 }} />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </ListItem>
-                                    {i < visibleNotifications.length - 1 && <Divider component="li" />}
-                                </React.Fragment>
-                            ))}
+                            {visibleNotifications.map((n, i) => {
+                                const info = getNotificationInfo(n.type);
+                                return (
+                                    <React.Fragment key={`${n.type}-${n._id || i}`}>
+                                        <ListItem
+                                            alignItems="flex-start"
+                                            onClick={() => handleNotificationClick(n)}
+                                            sx={{
+                                                py: 1.5, px: 2,
+                                                cursor: 'pointer',
+                                                borderLeft: '4px solid',
+                                                borderLeftColor: info.borderColor,
+                                                '&:hover': { bgcolor: 'action.hover' },
+                                                pr: 5, // make room for close button
+                                                position: 'relative',
+                                            }}
+                                        >
+                                            <ListItemText
+                                                primary={
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.5 }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            {info.icon}
+                                                            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                                                                {info.source}
+                                                            </Typography>
+                                                            <Box sx={{ flex: 1 }} />
+                                                            <Typography component="span" variant="caption" color="text.disabled">
+                                                                {formatTime(n.createdAt)}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <Chip
+                                                                label={info.label}
+                                                                size="small"
+                                                                color={info.color}
+                                                                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                                                            />
+                                                            <Typography
+                                                                component="span"
+                                                                variant="subtitle2"
+                                                                fontWeight={700}
+                                                                noWrap
+                                                                sx={{ flex: 1 }}
+                                                            >
+                                                                {n.title}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                }
+                                                secondaryTypographyProps={{ component: 'span' }}
+                                                secondary={
+                                                    <>
+                                                        <Typography
+                                                            component="span"
+                                                            display="block"
+                                                            variant="body2"
+                                                            color="text.primary"
+                                                            sx={{
+                                                                display: '-webkit-box',
+                                                                WebkitLineClamp: 3,
+                                                                WebkitBoxOrient: 'vertical',
+                                                                overflow: 'hidden',
+                                                                lineHeight: 1.4,
+                                                                mb: 0.5,
+                                                            }}
+                                                        >
+                                                            {n.body}
+                                                        </Typography>
+                                                        <Typography component="span" display="block" variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                                                            By: {n.author === 'System' ? info.source : n.author}
+                                                        </Typography>
+                                                    </>
+                                                }
+                                            />
+                                            {/* Close/dismiss button */}
+                                            <Tooltip title="Dismiss">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={(e) => handleDismiss(e, n._id)}
+                                                    sx={{
+                                                        position: 'absolute',
+                                                        top: 8,
+                                                        right: 4,
+                                                        opacity: 0.5,
+                                                        '&:hover': { opacity: 1, bgcolor: 'error.light', color: 'white' },
+                                                        p: 0.25,
+                                                    }}
+                                                >
+                                                    <Close sx={{ fontSize: 14 }} />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </ListItem>
+                                        {i < visibleNotifications.length - 1 && <Divider component="li" />}
+                                    </React.Fragment>
+                                );
+                            })}
                         </List>
                     )}
                 </Box>

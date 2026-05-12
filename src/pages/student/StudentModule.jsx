@@ -1779,7 +1779,7 @@ const ADMISSION_API = `${STUDENT_API_URL}/auth/register`;
 const COURSES_API = `${STUDENT_API_URL}/courses/categories/list`;
 
 function AdmissionFormPanel() {
-    const [form, setForm] = useState({ name: '', classType: 'Online', course: '', phone: '', email: '', password: '' });
+    const [form, setForm] = useState({ name: '', classType: 'Online', course: '', phone: '', email: '', password: '', profileImage: null });
     const [errors, setErrors] = useState({});
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -1833,24 +1833,26 @@ function AdmissionFormPanel() {
         if (!validate()) return;
         setLoading(true);
         try {
-            const payload = {
-                name: form.name.trim(),
-                mobile: form.phone.trim(), // Changed 'phone' to 'mobile' to match backend
-                email: form.email.trim(),
-                password: form.password,
-                studentType: form.classType.toLowerCase(),
-            };
-
+            // Use FormData for multipart upload
+            const formData = new FormData();
+            formData.append('name', form.name.trim());
+            formData.append('email', form.email.trim());
+            formData.append('mobile', form.phone.trim());
+            formData.append('password', form.password);
+            formData.append('confirmPassword', form.password);
+            formData.append('studentType', form.classType.toLowerCase());
+            
             if (form.classType === 'Offline') {
-                payload.courseId = form.course;
+                formData.append('courseId', form.course);
                 const selectedCourse = courses.find(c => c._id === form.course);
-                payload.courseName = selectedCourse ? selectedCourse.name : '';
+                formData.append('courseName', selectedCourse ? selectedCourse.name : '');
             }
 
-            const res = await portalAuthAPI.register({
-                ...payload,
-                confirmPassword: form.password // Added for backend validation
-            });
+            if (form.profileImage) {
+                formData.append('image', form.profileImage);
+            }
+
+            const res = await portalAuthAPI.register(formData);
             const data = res.data;
             // Axios throws on 4xx/5xx by default, but we check status to be safe if not throwing
             if (res.status !== 200 && res.status !== 201) throw new Error(data.message || `Server error (${res.status})`);
@@ -1921,6 +1923,18 @@ function AdmissionFormPanel() {
                                     )
                                 }}
                             />
+
+                            <Box sx={{ mt: 2, mb: 1 }}>
+                                <Typography variant="caption" color="text.secondary" gutterBottom display="block" fontWeight={700}>
+                                    PROFILE PHOTO (OPTIONAL)
+                                </Typography>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={e => setForm(f => ({ ...f, profileImage: e.target.files[0] }))}
+                                    style={{ width: '100%' }}
+                                />
+                            </Box>
 
                             <Typography variant="overline" color="text.secondary" fontWeight={700} letterSpacing={1.2} sx={{ display: 'block', mt: 2 }}>
                                 Class Type & Course Selection
@@ -2074,6 +2088,21 @@ export default function StudentModule() {
     const handleDisconnect = useCallback(() => { clearStudentPortalToken(); setConnected(false); }, []);
 
     useEffect(() => {
+        // Handle hash-based tab switching
+        const hash = window.location.hash.replace('#', '');
+        if (hash) {
+            // Find module by id or if it's a notification ID (long hex), maybe it's leave?
+            // Actually, NotificationBell appends #<id>, so we check for known module IDs
+            const moduleId = MODULES.find(m => m.id === hash)?.id;
+            if (moduleId) {
+                setActive(moduleId);
+            } else if (hash.includes('leave')) {
+                setActive('leave');
+            } else if (hash.includes('certificates')) {
+                setActive('certificates');
+            }
+        }
+
         const handleUnauthorized = () => {
             // Force disconnect when the API detects a 401
             handleDisconnect();
@@ -2906,7 +2935,7 @@ function CertificateManagementPanel() {
     const [searchTerm, setSearchTerm] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState(null);
-    const [form, setForm] = useState({ courseName: '', content: '', duration: '', isManual: false, studentName: '' });
+    const [form, setForm] = useState({ courseName: '', content: '', isManual: false, studentName: '' });
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -2952,8 +2981,7 @@ function CertificateManagementPanel() {
             if (localStudent && localStudent.courseName) {
                 setForm(prev => ({
                     ...prev,
-                    courseName: localStudent.courseName,
-                    duration: localStudent.duration || prev.duration || '3 Months'
+                    courseName: localStudent.courseName
                 }));
             }
 
@@ -2965,8 +2993,7 @@ function CertificateManagementPanel() {
                     if (data.courseName) {
                         setForm(prev => ({
                             ...prev,
-                            courseName: data.courseName,
-                            duration: data.duration || prev.duration || '3 Months'
+                            courseName: data.courseName
                         }));
                     }
                 })
@@ -3007,12 +3034,10 @@ function CertificateManagementPanel() {
             // Get course info from request, populated user, or local student
             const localStudent = uid ? allStudents.find(s => s._id === uid) : null;
             const course = req.courseName || u?.courseName || localStudent?.courseName || '';
-            const dur = req.duration || u?.courseDuration || localStudent?.duration || '';
             
             setForm({
                 courseName: course,
-                content: '',
-                duration: dur
+                content: ''
             });
 
             // If course info is still missing, trigger a fetch
@@ -3025,13 +3050,13 @@ function CertificateManagementPanel() {
             }
         } else {
             setSelectedUserId('');
-            setForm({ courseName: '', content: '', duration: '' });
+            setForm({ courseName: '', content: '' });
         }
         setModalOpen(true);
     };
 
     const handleGenerate = async () => {
-        if (!form.courseName || !form.content || !form.duration) {
+        if (!form.courseName || !form.content) {
             setMsg({ type: 'error', text: 'Please fill all fields' });
             return;
         }
@@ -3377,15 +3402,6 @@ function CertificateManagementPanel() {
                             />
                         </Grid>
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Duration:</Typography>
-                            <TextField
-                                fullWidth size="small"
-                                value={form.duration}
-                                onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                                placeholder="E.g. 6 Months"
-                            />
-                        </Grid>
-                        <Grid item xs={12}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                                 <Typography variant="subtitle2" fontWeight={700}>Content / Description:</Typography>
                                 <Typography variant="caption" color={form.content.length > 650 ? 'error.main' : 'text.secondary'}>
@@ -3408,14 +3424,15 @@ function CertificateManagementPanel() {
                     <Button onClick={() => setModalOpen(false)} disabled={saving} color="inherit">
                         Cancel
                     </Button>
-                    <Button
-                        onClick={handleGenerate}
-                        variant="contained"
-                        disabled={saving || form.content.length > 650 || !form.content.trim()}
-                        startIcon={saving && <CircularProgress size={16} color="inherit" />}
-                    >
-                        {saving ? 'Generating...' : 'Generate Certificate'}
-                    </Button>
+ <Button
+    onClick={handleGenerate}
+    variant="contained"
+    disabled={saving || form.content.length > 650 || !form.content.trim()}
+    startIcon={saving && <CircularProgress size={16} color="inherit" />}
+    sx={{ color: '#ffffff !important' }}
+>
+    {saving ? 'Generating...' : 'Generate Certificate'}
+</Button>
                 </DialogActions>
             </Dialog>
         </Box>

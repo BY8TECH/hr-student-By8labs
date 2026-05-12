@@ -163,5 +163,12 @@ export const certificateAPI = {
     requestCertificate: (data) => studentApi.post('/certificates/request', data),
 };
 
+// 10) Users
+export const userAPI = {
+    updateProfilePhoto: (userId, formData) => studentApi.post(`/users/update-profile-photo/${userId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+};
+
 export default studentApi;
 

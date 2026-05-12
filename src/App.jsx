@@ -42,6 +42,7 @@ import Leaderboard from './pages/studentPortal/Leaderboard';
 import StudentNotifications from './pages/studentPortal/StudentNotifications';
 import MyCourses from './pages/studentPortal/MyCourses';
 import MyCertificates from './pages/studentPortal/MyCertificates';
+import StudentProfile from './pages/studentPortal/StudentProfile';
 
 // Shared component overrides (same for both themes)
 const sharedComponents = {
@@ -657,6 +658,16 @@ function AppRoutes() {
                     <ProtectedRoute requiredRole="Student">
                         <AppLayout>
                             <MyCertificates />
+                        </AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/student-profile"
+                element={
+                    <ProtectedRoute requiredRole="Student">
+                        <AppLayout>
+                            <StudentProfile />
                         </AppLayout>
                     </ProtectedRoute>
                 }

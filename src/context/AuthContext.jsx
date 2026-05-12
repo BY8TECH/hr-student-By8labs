@@ -112,17 +112,25 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const updateUser = (data) => {
+        const updatedUser = { ...user, ...data };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+    };
+
     const value = {
         user,
         login,
         register,
         logout,
         refreshUser,
+        updateUser,
         loading,
         isAuthenticated: !!user,
         isHR: user?.role === 'HR',
         isManager: user?.role === 'Manager',
-        isEmployee: user?.role === 'Employee'
+        isEmployee: user?.role === 'Employee',
+        isStudent: user?.role === 'Student' || user?.role === 'student'
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

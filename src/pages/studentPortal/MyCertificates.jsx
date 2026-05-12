@@ -22,7 +22,7 @@ const MyCertificates = () => {
     // Request Dialog State
     const [requestOpen, setRequestOpen] = useState(false);
     const [requestLoading, setRequestLoading] = useState(false);
-    const [requestForm, setRequestForm] = useState({ courseName: '', duration: '' });
+    const [requestForm, setRequestForm] = useState({ courseName: '' });
     const [snack, setSnack] = useState({ open: false, msg: '', severity: 'success' });
 
     const fetchCertificates = async () => {
@@ -46,8 +46,8 @@ const MyCertificates = () => {
     }, [user?._id]);
 
     const handleRequestSubmit = async () => {
-        if (!requestForm.courseName || !requestForm.duration) {
-            setSnack({ open: true, msg: 'Please fill all fields', severity: 'warning' });
+        if (!requestForm.courseName) {
+            setSnack({ open: true, msg: 'Please enter the course name', severity: 'warning' });
             return;
         }
 
@@ -57,7 +57,7 @@ const MyCertificates = () => {
             if (res.data.success) {
                 setSnack({ open: true, msg: 'Certificate request submitted successfully!', severity: 'success' });
                 setRequestOpen(false);
-                setRequestForm({ courseName: '', duration: '' });
+                setRequestForm({ courseName: '' });
             }
         } catch (err) {
             setSnack({ open: true, msg: err.response?.data?.message || 'Failed to submit request', severity: 'error' });
@@ -232,13 +232,6 @@ const MyCertificates = () => {
                         sx={{ mb: 3, mt: 1 }}
                         value={requestForm.courseName}
                         onChange={e => setRequestForm({ ...requestForm, courseName: e.target.value })}
-                    />
-                    <TextField
-                        fullWidth
-                        label="Duration"
-                        placeholder="e.g. 6 Months"
-                        value={requestForm.duration}
-                        onChange={e => setRequestForm({ ...requestForm, duration: e.target.value })}
                     />
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>

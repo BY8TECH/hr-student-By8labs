@@ -37,7 +37,11 @@ const Header = ({ onMenuToggle }) => {
     };
     const handleProfile = () => {
         handleClose();
-        navigate('/profile');
+        if (user?.role === 'Student' || user?.role === 'student') {
+            navigate('/student-profile');
+        } else {
+            navigate('/profile');
+        }
     };
 
     return (
@@ -133,6 +137,7 @@ const Header = ({ onMenuToggle }) => {
                         }}
                     >
                         <Avatar
+                            src={user?.profileImage}
                             sx={{
                                 width: 42,
                                 height: 42,
@@ -143,7 +148,7 @@ const Header = ({ onMenuToggle }) => {
                                 fontSize: '1rem',
                             }}
                         >
-                            {user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                            {!user?.profileImage && (user?.email?.charAt(0)?.toUpperCase() || 'U')}
                         </Avatar>
                     </IconButton>
                 </Box>
