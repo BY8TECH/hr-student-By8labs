@@ -14,7 +14,7 @@ import {
     Search, Assessment, NotificationsActive, LinkOff, Lock, Refresh,
     FilterList, Visibility, HowToReg, PersonSearch, History, DataUsage, EventNote,
     Assignment, AccessTime, Payments, AddCard, ListAlt, FileDownload, AccountBalanceWallet,
-    AttachMoney, Group, PendingActions, CloudUpload, VerifiedUser
+    AttachMoney, Group, PendingActions, CloudUpload, VerifiedUser, Delete
 } from '@mui/icons-material';
 import StudentLeaveManagementPanel from './StudentLeaveManagementPanel';
 import {
@@ -208,6 +208,20 @@ function UsersPanel() {
         finally { setSaving(false); }
     };
 
+    const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure you want to permanently delete this user?')) return;
+        try {
+            setSaving(true);
+            await adminStudentAPI.deleteStudent(id);
+            setSuccess('User deleted successfully.');
+            fetch();
+        } catch {
+            setError('Failed to delete user.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const filtered = students.filter(s => {
         const matchesSearch = !search ||
             s.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -299,7 +313,14 @@ function UsersPanel() {
                                                     </Tooltip>
                                                 </>
                                             ) : (
-                                                <Chip label="Verified" size="small" color="info" variant="outlined" icon={<CheckCircle fontSize="small" />} />
+                                                <Box display="flex" alignItems="center" gap={1}>
+                                                    <Chip label="Verified" size="small" color="info" variant="outlined" icon={<CheckCircle fontSize="small" />} />
+                                                    <Tooltip title="Delete Permanently">
+                                                        <IconButton size="small" color="error" disabled={saving} onClick={() => handleDelete(s._id)}>
+                                                            <Delete fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </Box>
                                             )}
                                         </TableCell>
                                     </TableRow>
@@ -953,6 +974,16 @@ function StudentListModule() {
         s.studentId?.toLowerCase().includes(search.toLowerCase())
     );
 
+    const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this student?')) return;
+        try {
+            setLoading(true);
+            await adminStudentAPI.deleteStudent(id);
+            fetch();
+        } catch { }
+        finally { setLoading(false); }
+    };
+
     return (
         <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -974,6 +1005,7 @@ function StudentListModule() {
                                 <TableCell><b>Email</b></TableCell>
                                 <TableCell><b>Course</b></TableCell>
                                 <TableCell><b>Status</b></TableCell>
+                                <TableCell align="right"><b>Actions</b></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -990,6 +1022,13 @@ function StudentListModule() {
                                         <TableCell><Typography variant="body2">{s.email}</Typography></TableCell>
                                         <TableCell><Typography variant="body2">{s.courseName || s.course?.name || '—'}</Typography></TableCell>
                                         <TableCell><Chip label="Approved" size="small" color="success" variant="outlined" /></TableCell>
+                                        <TableCell align="right">
+                                            <Tooltip title="Delete Student">
+                                                <IconButton size="small" color="error" onClick={() => handleDelete(s._id)} disabled={loading}>
+                                                    <Delete fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </TableCell>
                                     </TableRow>
                                 ))
                             }
@@ -1101,6 +1140,20 @@ function CoursesPanel() {
         }
     };
 
+    const handleDeleteCategory = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this course?')) return;
+        try {
+            setLoading(true);
+            await courseAPI.deleteCategory(id);
+            setSuccess('Course deleted successfully!');
+            fetchCourses();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to delete course');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (loading && courses.length === 0) return <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>;
 
     return (
@@ -1122,7 +1175,17 @@ function CoursesPanel() {
                     <Grid container spacing={2}>
                         {courses.map(c => (
                             <Grid item xs={12} sm={6} md={4} key={c._id}>
-                                <Card>
+                                <Card sx={{ position: 'relative' }}>
+                                    <Box sx={{ position: 'absolute', top: 5, right: 5, zIndex: 1 }}>
+                                        <IconButton
+                                            size="small"
+                                            sx={{ bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: '#fff' } }}
+                                            color="error"
+                                            onClick={() => handleDeleteCategory(c._id)}
+                                        >
+                                            <Delete fontSize="small" />
+                                        </IconButton>
+                                    </Box>
                                     <Box sx={{ height: 140, bgcolor: 'grey.100', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                                         {c.imageUrl ? (
                                             <Box

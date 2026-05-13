@@ -59,6 +59,7 @@ export const adminStudentAPI = {
     getAllStudents: () => studentApi.get('/admin/students'),
     approveStudent: (id) => studentApi.patch(`/admin/students/${id}/approve`),
     rejectStudent: (id) => studentApi.patch(`/admin/students/${id}/reject`),
+    deleteStudent: (id) => studentApi.delete(`/admin/students/${id}`),
 };
 
 // 3) Courses
@@ -66,6 +67,7 @@ export const courseAPI = {
     getCategoryNames: () => studentApi.get('/courses/categories/names'),
     getCategories: () => studentApi.get('/courses/categories/list'),
     addCategory: (data) => studentApi.post('/courses/categories/list', data),
+    deleteCategory: (id) => studentApi.delete(`/courses/categories/list/${id}`),
     getAllCourses: () => studentApi.get('/courses/categories/list'),
     addCourse: (data) => studentApi.post('/courses', data),
     getCourseAbout: (id) => studentApi.get(`/courses/${id}/about`),
