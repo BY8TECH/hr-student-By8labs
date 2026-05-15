@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://hrstudent-backend.onrender.com');
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'http://31.220.20.249:6001');
 export const STUDENT_API_URL = import.meta.env.VITE_SP_API_URL || `${BACKEND_URL}/api/sp`;
 
 // Separate token key so it doesn't collide with the HR backend token
