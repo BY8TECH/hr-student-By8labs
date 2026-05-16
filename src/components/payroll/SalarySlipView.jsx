@@ -379,7 +379,7 @@ const SalarySlipView = ({ payroll }) => {
                     </Grid>
 
                     {/* Download Button */}
-                    <Grid item xs={12}>
+                    {/* <Grid item xs={12}>
                         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                             <Button
                                 variant="contained"
@@ -410,7 +410,7 @@ const SalarySlipView = ({ payroll }) => {
                                 {downloading ? 'Downloading...' : `Download ${withTax ? 'With Tax' : 'Without Tax'} Slip`}
                             </Button>
                         </Box>
-                    </Grid>
+                  </Grid> */}
                 </Grid>
             </Box>
         );

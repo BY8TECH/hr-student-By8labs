@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Box, Toolbar } from '@mui/material';
+import { Box, Toolbar, CircularProgress } from '@mui/material';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Components
@@ -10,39 +10,39 @@ import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
-// Pages
-import Login from './components/auth/Login';
-import Register from './components/auth/Register';
-import VerifyOTP from './components/auth/VerifyOTP';
-import PendingApproval from './components/auth/PendingApproval';
-import Dashboard from './pages/Dashboard';
-import EmployeeManagement from './pages/EmployeeManagement';
-import EmployeeDetails from './components/employees/EmployeeDetails';
-import MyProfile from './pages/MyProfile';
-import AttendanceManagement from './pages/AttendanceManagement';
-import LeaveManagement from './pages/LeaveManagement';
-import PayrollManagement from './pages/PayrollManagement';
-import RecruitmentManagement from './pages/RecruitmentManagement';
-import AccessRequests from './pages/AccessRequests';
-import PendingUsers from './pages/PendingUsers';
-import Reports from './pages/Reports';
-import AnnouncementManagement from './pages/AnnouncementManagement';
-import EmailManagement from './pages/EmailManagement';
-import Feedback from './pages/Feedback';
-import PerformanceManagement from './pages/PerformanceManagement';
-import DocumentManagement from './pages/DocumentManagement';
-import StudentModule from './pages/student/StudentModule';
-import StudentAssignment from './pages/student/StudentAssignment';
-import CertificateManagement from './pages/CertificateManagement';
-import CourseCatalog from './pages/studentPortal/CourseCatalog';
-import CourseDetails from './pages/studentPortal/CourseDetails';
-import LessonViewer from './pages/studentPortal/LessonViewer';
-import StudentAttendance from './pages/studentPortal/StudentAttendance';
-import Leaderboard from './pages/studentPortal/Leaderboard';
-import StudentNotifications from './pages/studentPortal/StudentNotifications';
-import MyCourses from './pages/studentPortal/MyCourses';
-import MyCertificates from './pages/studentPortal/MyCertificates';
-import StudentProfile from './pages/studentPortal/StudentProfile';
+// Pages - Lazy Loaded
+const Login = React.lazy(() => import('./components/auth/Login'));
+const Register = React.lazy(() => import('./components/auth/Register'));
+const VerifyOTP = React.lazy(() => import('./components/auth/VerifyOTP'));
+const PendingApproval = React.lazy(() => import('./components/auth/PendingApproval'));
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const EmployeeManagement = React.lazy(() => import('./pages/EmployeeManagement'));
+const EmployeeDetails = React.lazy(() => import('./components/employees/EmployeeDetails'));
+const MyProfile = React.lazy(() => import('./pages/MyProfile'));
+const AttendanceManagement = React.lazy(() => import('./pages/AttendanceManagement'));
+const LeaveManagement = React.lazy(() => import('./pages/LeaveManagement'));
+const PayrollManagement = React.lazy(() => import('./pages/PayrollManagement'));
+const RecruitmentManagement = React.lazy(() => import('./pages/RecruitmentManagement'));
+const AccessRequests = React.lazy(() => import('./pages/AccessRequests'));
+const PendingUsers = React.lazy(() => import('./pages/PendingUsers'));
+const Reports = React.lazy(() => import('./pages/Reports'));
+const AnnouncementManagement = React.lazy(() => import('./pages/AnnouncementManagement'));
+const EmailManagement = React.lazy(() => import('./pages/EmailManagement'));
+const Feedback = React.lazy(() => import('./pages/Feedback'));
+const PerformanceManagement = React.lazy(() => import('./pages/PerformanceManagement'));
+const DocumentManagement = React.lazy(() => import('./pages/DocumentManagement'));
+const StudentModule = React.lazy(() => import('./pages/student/StudentModule'));
+const StudentAssignment = React.lazy(() => import('./pages/student/StudentAssignment'));
+const CertificateManagement = React.lazy(() => import('./pages/CertificateManagement'));
+const CourseCatalog = React.lazy(() => import('./pages/studentPortal/CourseCatalog'));
+const CourseDetails = React.lazy(() => import('./pages/studentPortal/CourseDetails'));
+const LessonViewer = React.lazy(() => import('./pages/studentPortal/LessonViewer'));
+const StudentAttendance = React.lazy(() => import('./pages/studentPortal/StudentAttendance'));
+const Leaderboard = React.lazy(() => import('./pages/studentPortal/Leaderboard'));
+const StudentNotifications = React.lazy(() => import('./pages/studentPortal/StudentNotifications'));
+const MyCourses = React.lazy(() => import('./pages/studentPortal/MyCourses'));
+const MyCertificates = React.lazy(() => import('./pages/studentPortal/MyCertificates'));
+const StudentProfile = React.lazy(() => import('./pages/studentPortal/StudentProfile'));
 
 // Shared component overrides (same for both themes)
 const sharedComponents = {
@@ -762,7 +762,13 @@ function App() {
         <Router>
             <AuthProvider>
                 <ThemedApp>
-                    <AppRoutes />
+                    <React.Suspense fallback={
+                        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+                            <CircularProgress />
+                        </Box>
+                    }>
+                        <AppRoutes />
+                    </React.Suspense>
                 </ThemedApp>
             </AuthProvider>
         </Router>

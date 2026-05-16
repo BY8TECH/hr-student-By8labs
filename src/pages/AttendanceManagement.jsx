@@ -24,6 +24,7 @@ const AttendanceManagement = () => {
     const [message, setMessage] = useState({ type: '', text: '' });
     const [stats, setStats] = useState({ present: 0, absent: 0, total: 0 });
     const [tabValue, setTabValue] = useState(0);
+    const [markingAttendance, setMarkingAttendance] = useState(false);
 
     // Filter states for HR
     const [filters, setFilters] = useState({
@@ -115,14 +116,16 @@ const AttendanceManagement = () => {
     };
 
     const markAttendance = async (status, extraData = {}) => {
-        if (todayAttendance) {
+        // Only block if already marked AND it's not a valid transition (e.g. Present -> Permission)
+        if (todayAttendance && !((todayAttendance.status === 'Present' || todayAttendance.status === 'Permission') && status === 'Permission')) {
             setMessage({
                 type: 'warning',
-                text: `Attendance already marked as "${todayAttendance.status}" today. You can only mark attendance once per day.`
+                text: `Attendance is already marked as "${todayAttendance.status}". Status cannot be changed further today.`
             });
             return;
         }
         try {
+            setMarkingAttendance(true);
             setMessage({ type: '', text: '' });
             const response = await attendanceAPI.markAttendance({ status, ...extraData });
             setTodayAttendance(response.data);
@@ -136,34 +139,57 @@ const AttendanceManagement = () => {
                 type: 'error',
                 text: error.response?.data?.message || 'Failed to mark attendance'
             });
+        } finally {
+            setMarkingAttendance(false);
         }
     };
 
     const handlePermissionClick = () => {
-        if (todayAttendance) {
+        if (todayAttendance && todayAttendance.status !== 'Present') {
             setMessage({
                 type: 'warning',
-                text: `Attendance already marked as "${todayAttendance.status}" today. You can only mark attendance once per day.`
+                text: `Permission can only be applied if you are marked as "Present". Current status: "${todayAttendance.status}"`
             });
             return;
         }
-        setPermissionFrom('');
-        setPermissionTo('');
+        setMessage({ type: '', text: '' }); // Clear any existing messages
+        setPermissionFrom('09:00');
+        setPermissionTo('10:00');
+        // Initialize 12h states
+        const from = '09:00';
+        const to = '10:00';
+        setFromHour(9); setFromMin('00'); setFromAmpm('AM');
+        setToHour(10); setToMin('00'); setToAmpm('AM');
+        
         setPermissionError('');
         setPermissionDialog(true);
     };
 
+    const [fromHour, setFromHour] = useState(9);
+    const [fromMin, setFromMin] = useState('00');
+    const [fromAmpm, setFromAmpm] = useState('AM');
+    const [toHour, setToHour] = useState(10);
+    const [toMin, setToMin] = useState('00');
+    const [toAmpm, setToAmpm] = useState('AM');
+
     const handlePermissionSubmit = async () => {
-        if (!permissionFrom || !permissionTo) {
-            setPermissionError('Please select both From Time and To Time.');
-            return;
-        }
-        if (permissionFrom >= permissionTo) {
+        // Convert 12h to 24h for backend
+        const to24 = (h, m, ampm) => {
+            let hr = parseInt(h);
+            if (ampm === 'PM' && hr < 12) hr += 12;
+            if (ampm === 'AM' && hr === 12) hr = 0;
+            return `${hr.toString().padStart(2, '0')}:${m}`;
+        };
+
+        const fromTime = to24(fromHour, fromMin, fromAmpm);
+        const toTime = to24(toHour, toMin, toAmpm);
+
+        if (fromTime >= toTime) {
             setPermissionError('"To Time" must be after "From Time".');
             return;
         }
         setPermissionDialog(false);
-        await markAttendance('Permission', { permissionFrom, permissionTo });
+        await markAttendance('Permission', { permissionFrom: fromTime, permissionTo: toTime });
     };
 
     const handleEditAttendance = (record) => {
@@ -203,6 +229,21 @@ const AttendanceManagement = () => {
             minute: '2-digit',
             second: '2-digit'
         });
+    };
+
+    const formatTime12h = (timeStr) => {
+        if (!timeStr) return '';
+        try {
+            const [hours, minutes] = timeStr.split(':');
+            let h = parseInt(hours);
+            const m = minutes;
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            h = h ? h : 12;
+            return `${h}:${m} ${ampm}`;
+        } catch (e) {
+            return timeStr;
+        }
     };
 
     const getStatusColor = (status) => {
@@ -291,6 +332,11 @@ const AttendanceManagement = () => {
                                 <Grid item xs>
                                     <Typography variant="h5">
                                         Current Status: {todayAttendance.status}
+                                        {todayAttendance.status === 'Permission' && todayAttendance.permissionFrom && (
+                                            <span style={{ fontSize: '0.8em', marginLeft: '10px', opacity: 0.9 }}>
+                                                ({formatTime12h(todayAttendance.permissionFrom)} - {formatTime12h(todayAttendance.permissionTo)})
+                                            </span>
+                                        )}
                                     </Typography>
                                     <Typography variant="body2">
                                         Marked at {formatTime(todayAttendance.checkIn)}
@@ -307,51 +353,62 @@ const AttendanceManagement = () => {
                 </Typography>
 
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    <Button
-                        variant={todayAttendance?.status === 'Present' ? "outlined" : "contained"}
-                        sx={{
-                            flex: 1,
-                            py: 1.5,
-                            backgroundColor: todayAttendance?.status === 'Present' ? 'transparent' : '#4caf50',
-                            color: todayAttendance?.status === 'Present' ? '#4caf50' : 'white',
-                            borderColor: '#4caf50',
-                            '&:hover': { backgroundColor: todayAttendance?.status === 'Present' ? 'rgba(76, 175, 80, 0.1)' : '#388e3c' }
-                        }}
-                        startIcon={<CheckCircle />}
-                        onClick={() => markAttendance('Present')}
-                    >
-                        Mark Present
-                    </Button>
-                    <Button
-                        variant={todayAttendance?.status === 'Permission' ? "outlined" : "contained"}
-                        sx={{
-                            flex: 1,
-                            py: 1.5,
-                            backgroundColor: todayAttendance?.status === 'Permission' ? 'transparent' : '#2196f3',
-                            color: todayAttendance?.status === 'Permission' ? '#2196f3' : 'white',
-                            borderColor: '#2196f3',
-                            '&:hover': { backgroundColor: todayAttendance?.status === 'Permission' ? 'rgba(33, 150, 243, 0.1)' : '#1976d2' }
-                        }}
-                        startIcon={<AccessTime />}
-                        onClick={handlePermissionClick}
-                    >
-                        Mark Permission
-                    </Button>
-                    <Button
-                        variant={todayAttendance?.status === 'Absent' ? "outlined" : "contained"}
-                        sx={{
-                            flex: 1,
-                            py: 1.5,
-                            backgroundColor: todayAttendance?.status === 'Absent' ? 'transparent' : '#f44336',
-                            color: todayAttendance?.status === 'Absent' ? '#f44336' : 'white',
-                            borderColor: '#f44336',
-                            '&:hover': { backgroundColor: todayAttendance?.status === 'Absent' ? 'rgba(244, 67, 54, 0.1)' : '#d32f2f' }
-                        }}
-                        startIcon={<Cancel />}
-                        onClick={() => markAttendance('Absent')}
-                    >
-                        Mark Absent
-                    </Button>
+                    {(!todayAttendance || todayAttendance.status === 'Present') && (
+                        <Button
+                            variant={todayAttendance?.status === 'Present' ? "outlined" : "contained"}
+                            sx={{
+                                flex: 1,
+                                py: 1.5,
+                                backgroundColor: todayAttendance?.status === 'Present' ? 'transparent' : '#4caf50',
+                                color: todayAttendance?.status === 'Present' ? '#4caf50' : 'white',
+                                borderColor: '#4caf50',
+                                '&:hover': { backgroundColor: todayAttendance?.status === 'Present' ? 'rgba(76, 175, 80, 0.1)' : '#388e3c' }
+                            }}
+                            startIcon={<CheckCircle />}
+                            onClick={() => markAttendance('Present')}
+                            disabled={markingAttendance || !!todayAttendance}
+                        >
+                            Mark Present
+                        </Button>
+                    )}
+
+                    {todayAttendance && (todayAttendance.status === 'Present' || todayAttendance.status === 'Permission') && (
+                        <Button
+                            variant="contained"
+                            sx={{
+                                flex: 1,
+                                py: 1.5,
+                                backgroundColor: '#2196f3',
+                                color: 'white !important',
+                                borderColor: '#2196f3',
+                                '&:hover': { backgroundColor: '#1976d2' }
+                            }}
+                            startIcon={<AccessTime />}
+                            onClick={handlePermissionClick}
+                            disabled={markingAttendance || todayAttendance.status === 'Permission'}
+                        >
+                            Apply Permission
+                        </Button>
+                    )}
+
+                    {(!todayAttendance || todayAttendance.status === 'Absent') && (
+                        <Button
+                            variant={todayAttendance?.status === 'Absent' ? "outlined" : "contained"}
+                            sx={{
+                                flex: 1,
+                                py: 1.5,
+                                backgroundColor: todayAttendance?.status === 'Absent' ? 'transparent' : '#f44336',
+                                color: todayAttendance?.status === 'Absent' ? '#f44336' : 'white',
+                                borderColor: '#f44336',
+                                '&:hover': { backgroundColor: todayAttendance?.status === 'Absent' ? 'rgba(244, 67, 54, 0.1)' : '#d32f2f' }
+                            }}
+                            startIcon={<Cancel />}
+                            onClick={() => markAttendance('Absent')}
+                            disabled={markingAttendance || !!todayAttendance}
+                        >
+                            Mark Absent
+                        </Button>
+                    )}
                 </Box>
             </Paper>
 
@@ -603,7 +660,11 @@ const AttendanceManagement = () => {
                                                     <TableCell>{record.employeeId?.firstName} {record.employeeId?.lastName}</TableCell>
                                                     <TableCell>{formatDate(record.date)}</TableCell>
                                                     <TableCell>
-                                                        <Chip label={record.status} color={getStatusColor(record.status)} size="small" />
+                                                        <Chip 
+                                                            label={record.status + (record.status === 'Permission' && record.permissionFrom ? ` (${formatTime12h(record.permissionFrom)} - ${formatTime12h(record.permissionTo)})` : '')} 
+                                                            color={getStatusColor(record.status)} 
+                                                            size="small" 
+                                                        />
                                                     </TableCell>
                                                     <TableCell>{record.checkIn ? formatTime(record.checkIn) : '-'}</TableCell>
                                                     <TableCell>{record.totalHours || 0} hrs</TableCell>
@@ -664,27 +725,36 @@ const AttendanceManagement = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Please specify the time range for your permission leave today.
                     </Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <TextField
-                            label="From Time"
-                            type="time"
-                            value={permissionFrom}
-                            onChange={(e) => { setPermissionFrom(e.target.value); setPermissionError(''); }}
-                            InputLabelProps={{ shrink: true }}
-                            inputProps={{ step: 300 }}
-                            fullWidth
-                            required
-                        />
-                        <TextField
-                            label="To Time"
-                            type="time"
-                            value={permissionTo}
-                            onChange={(e) => { setPermissionTo(e.target.value); setPermissionError(''); }}
-                            InputLabelProps={{ shrink: true }}
-                            inputProps={{ step: 300 }}
-                            fullWidth
-                            required
-                        />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <Box>
+                            <Typography variant="subtitle2" gutterBottom>From Time</Typography>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Select size="small" value={fromHour} onChange={(e) => setFromHour(e.target.value)} sx={{ flex: 1 }}>
+                                    {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={fromMin} onChange={(e) => setFromMin(e.target.value)} sx={{ flex: 1 }}>
+                                    {['00', '15', '30', '45'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={fromAmpm} onChange={(e) => setFromAmpm(e.target.value)} sx={{ flex: 1 }}>
+                                    {['AM', 'PM'].map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                                </Select>
+                            </Box>
+                        </Box>
+
+                        <Box>
+                            <Typography variant="subtitle2" gutterBottom>To Time</Typography>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Select size="small" value={toHour} onChange={(e) => setToHour(e.target.value)} sx={{ flex: 1 }}>
+                                    {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={toMin} onChange={(e) => setToMin(e.target.value)} sx={{ flex: 1 }}>
+                                    {['00', '15', '30', '45'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={toAmpm} onChange={(e) => setToAmpm(e.target.value)} sx={{ flex: 1 }}>
+                                    {['AM', 'PM'].map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                                </Select>
+                            </Box>
+                        </Box>
                         {permissionError && (
                             <Alert severity="error" sx={{ py: 0.5 }}>{permissionError}</Alert>
                         )}
@@ -735,12 +805,11 @@ const AttendanceManagement = () => {
                                         label="New Status"
                                         onChange={(e) => setEditStatus(e.target.value)}
                                     >
-                                        <MenuItem value="Present">Present</MenuItem>
+                                        <MenuItem value="Present" disabled={editDialog.record.status === 'Absent'}>Present</MenuItem>
                                         <MenuItem value="Absent">Absent</MenuItem>
-                                        <MenuItem value="Permission">Permission</MenuItem>
-                                        <MenuItem value="Half Day">Half Day</MenuItem>
-                                        <MenuItem value="Work From Home">Work From Home</MenuItem>
-                                        <MenuItem value="On Leave">On Leave</MenuItem>
+                                        {editDialog.record.status === 'Permission' && (
+                                            <MenuItem value="Permission">Permission</MenuItem>
+                                        )}
                                     </Select>
                                 </FormControl>
                             </Box>

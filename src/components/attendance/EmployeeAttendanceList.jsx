@@ -18,7 +18,9 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
-    DialogActions
+    DialogActions,
+    Select,
+    MenuItem
 } from '@mui/material';
 import { CheckCircle, Cancel, AccessTime } from '@mui/icons-material';
 import { employeeAPI, attendanceAPI } from '../../services/api';
@@ -37,6 +39,21 @@ const EmployeeAttendanceList = () => {
     const [permissionTo, setPermissionTo] = useState('');
     const [permissionError, setPermissionError] = useState('');
     const [selectedEmployeeForPermission, setSelectedEmployeeForPermission] = useState(null);
+
+    const formatTime12h = (timeStr) => {
+        if (!timeStr) return '';
+        try {
+            const [hours, minutes] = timeStr.split(':');
+            let h = parseInt(hours);
+            const m = minutes;
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            h = h ? h : 12;
+            return `${h}:${m} ${ampm}`;
+        } catch (e) {
+            return timeStr;
+        }
+    };
 
     useEffect(() => {
         loadEmployees();
@@ -64,11 +81,11 @@ const EmployeeAttendanceList = () => {
             const endDate = selectedDate;
             const response = await attendanceAPI.getAll({ startDate, endDate });
 
-            // Create a map of employeeId -> attendance status
+            // Create a map of employeeId -> attendance record
             const statusMap = {};
             response.data.forEach(record => {
                 if (record.employeeId?._id) {
-                    statusMap[record.employeeId._id] = record.status;
+                    statusMap[record.employeeId._id] = record;
                 }
             });
             setAttendanceStatus(statusMap);
@@ -92,7 +109,7 @@ const EmployeeAttendanceList = () => {
             // Update local state
             setAttendanceStatus(prev => ({
                 ...prev,
-                [employeeId]: status
+                [employeeId]: { status, ...extraData }
             }));
 
             setMessage({
@@ -111,25 +128,35 @@ const EmployeeAttendanceList = () => {
 
     const handlePermissionClick = (employeeId) => {
         setSelectedEmployeeForPermission(employeeId);
-        setPermissionFrom('');
-        setPermissionTo('');
+        setPermissionFrom('09:00');
+        setPermissionTo('10:00');
+        setFromHour(9); setFromMin('00'); setFromAmpm('AM');
+        setToHour(10); setToMin('00'); setToAmpm('AM');
         setPermissionError('');
         setPermissionDialog(true);
     };
 
     const handlePermissionSubmit = async () => {
-        if (!permissionFrom || !permissionTo) {
-            setPermissionError('Please select both From Time and To Time.');
-            return;
-        }
-        if (permissionFrom >= permissionTo) {
+        const to24 = (h, m, ampm) => {
+            let hr = parseInt(h);
+            if (ampm === 'PM' && hr < 12) hr += 12;
+            if (ampm === 'AM' && hr === 12) hr = 0;
+            return `${hr.toString().padStart(2, '0')}:${m}`;
+        };
+
+        const fromTime = to24(fromHour, fromMin, fromAmpm);
+        const toTime = to24(toHour, toMin, toAmpm);
+
+        if (fromTime >= toTime) {
             setPermissionError('"To Time" must be after "From Time".');
             return;
         }
         
-        const empId = selectedEmployeeForPermission;
         setPermissionDialog(false);
-        await markAttendance(empId, 'Permission', { permissionFrom, permissionTo });
+        await markAttendance(selectedEmployeeForPermission, 'Permission', { 
+            permissionFrom: fromTime, 
+            permissionTo: toTime 
+        });
     };
 
     const markAllPresent = async () => {
@@ -265,8 +292,8 @@ const EmployeeAttendanceList = () => {
                                         <TableCell>
                                             {status ? (
                                                 <Chip
-                                                    label={status}
-                                                    color={getStatusColor(status)}
+                                                    label={status.status + (status.status === 'Permission' && status.permissionFrom ? ` (${formatTime12h(status.permissionFrom)} - ${formatTime12h(status.permissionTo)})` : '')}
+                                                    color={getStatusColor(status.status)}
                                                     size="small"
                                                 />
                                             ) : (
@@ -275,38 +302,47 @@ const EmployeeAttendanceList = () => {
                                         </TableCell>
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                                <Button
-                                                    size="small"
-                                                    variant="contained"
-                                                    color="success"
-                                                    startIcon={<CheckCircle />}
-                                                    onClick={() => markAttendance(employee._id, 'Present')}
-                                                    disabled={marking || status === 'Present'}
-                                                >
-                                                    Present
-                                                </Button>
-                                                <Button
-                                                    size="small"
-                                                    variant="contained"
-                                                    sx={{
-                                                        backgroundColor: '#2196f3',
-                                                        '&:hover': { backgroundColor: '#1976d2' }
-                                                    }}
-                                                    onClick={() => handlePermissionClick(employee._id)}
-                                                    disabled={marking || status === 'Permission'}
-                                                >
-                                                    Permission
-                                                </Button>
-                                                <Button
-                                                    size="small"
-                                                    variant="contained"
-                                                    color="error"
-                                                    startIcon={<Cancel />}
-                                                    onClick={() => markAttendance(employee._id, 'Absent')}
-                                                    disabled={marking || status === 'Absent'}
-                                                >
-                                                    Absent
-                                                </Button>
+                                                {(status?.status !== 'Absent') && (
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        color="success"
+                                                        startIcon={<CheckCircle />}
+                                                        onClick={() => markAttendance(employee._id, 'Present')}
+                                                        disabled={marking || status?.status === 'Present'}
+                                                    >
+                                                        Present
+                                                    </Button>
+                                                )}
+                                                {(status?.status === 'Present' || status?.status === 'Permission') && (
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        sx={{
+                                                            backgroundColor: '#2196f3',
+                                                            '&:hover': { backgroundColor: '#1976d2' }
+                                                        }}
+                                                        onClick={() => handlePermissionClick(employee._id)}
+                                                        disabled={marking || status?.status === 'Permission'}
+                                                    >
+                                                        Permission
+                                                    </Button>
+                                                )}
+                                                {(status !== 'Absent' || !status) && (
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        color="error"
+                                                        startIcon={<Cancel />}
+                                                        onClick={() => markAttendance(employee._id, 'Absent')}
+                                                        disabled={marking || status === 'Absent'}
+                                                    >
+                                                        Absent
+                                                    </Button>
+                                                )}
+                                                {status === 'Absent' && (
+                                                    <Chip label="Absent" color="error" size="small" />
+                                                )}
                                             </Box>
                                         </TableCell>
                                     </TableRow>
@@ -332,27 +368,36 @@ const EmployeeAttendanceList = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Please specify the time range for this permission leave.
                     </Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <TextField
-                            label="From Time"
-                            type="time"
-                            value={permissionFrom}
-                            onChange={(e) => { setPermissionFrom(e.target.value); setPermissionError(''); }}
-                            InputLabelProps={{ shrink: true }}
-                            inputProps={{ step: 300 }}
-                            fullWidth
-                            required
-                        />
-                        <TextField
-                            label="To Time"
-                            type="time"
-                            value={permissionTo}
-                            onChange={(e) => { setPermissionTo(e.target.value); setPermissionError(''); }}
-                            InputLabelProps={{ shrink: true }}
-                            inputProps={{ step: 300 }}
-                            fullWidth
-                            required
-                        />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <Box>
+                            <Typography variant="subtitle2" gutterBottom>From Time</Typography>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Select size="small" value={fromHour} onChange={(e) => setFromHour(e.target.value)} sx={{ flex: 1 }}>
+                                    {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={fromMin} onChange={(e) => setFromMin(e.target.value)} sx={{ flex: 1 }}>
+                                    {['00', '15', '30', '45'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={fromAmpm} onChange={(e) => setFromAmpm(e.target.value)} sx={{ flex: 1 }}>
+                                    {['AM', 'PM'].map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                                </Select>
+                            </Box>
+                        </Box>
+
+                        <Box>
+                            <Typography variant="subtitle2" gutterBottom>To Time</Typography>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Select size="small" value={toHour} onChange={(e) => setToHour(e.target.value)} sx={{ flex: 1 }}>
+                                    {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={toMin} onChange={(e) => setToMin(e.target.value)} sx={{ flex: 1 }}>
+                                    {['00', '15', '30', '45'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                                </Select>
+                                <Select size="small" value={toAmpm} onChange={(e) => setToAmpm(e.target.value)} sx={{ flex: 1 }}>
+                                    {['AM', 'PM'].map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                                </Select>
+                            </Box>
+                        </Box>
                         {permissionError && (
                             <Alert severity="error" sx={{ py: 0.5 }}>{permissionError}</Alert>
                         )}
@@ -366,7 +411,7 @@ const EmployeeAttendanceList = () => {
                         variant="contained"
                         color="info"
                         onClick={handlePermissionSubmit}
-                        disabled={!permissionFrom || !permissionTo || marking}
+                        disabled={marking}
                         startIcon={<AccessTime />}
                     >
                         {marking ? 'Submitting...' : 'Submit Permission'}

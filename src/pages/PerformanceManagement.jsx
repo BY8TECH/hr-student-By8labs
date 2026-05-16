@@ -234,8 +234,8 @@ const PerformanceManagement = () => {
                     { label: 'Total Reviews', value: reviews.length, color: '#3b82f6', bg: '#eff6ff', icon: <PendingActions /> },
                     { label: 'Submitted', value: reviews.filter(r => r.status === 'Submitted').length, color: '#d97706', bg: '#fff7ed', icon: <HourglassEmpty /> },
                     { label: 'Acknowledged', value: reviews.filter(r => r.status === 'Acknowledged').length, color: '#16a34a', bg: '#f0fdf4', icon: <CheckCircle /> },
-                    { label: 'Promotion Eligible', value: promotionList.length, color: '#7c3aed', bg: '#f5f3ff', icon: <WorkspacePremium /> },
-                ].map(stat => (
+                    isHR && { label: 'Promotion Eligible', value: promotionList.length, color: '#7c3aed', bg: '#f5f3ff', icon: <WorkspacePremium /> },
+                ].filter(Boolean).map(stat => (
                     <Grid item xs={6} md={3} key={stat.label}>
                         <Card sx={{ borderTop: `4px solid ${stat.color}`, bgcolor: stat.bg }}>
                             <CardContent sx={{ py: 1.5 }}>
@@ -263,8 +263,8 @@ const PerformanceManagement = () => {
                     scrollButtons="auto"
                 >
                     <Tab label="📋 Reviews" />
-                    <Tab label="⭐ Ratings Dashboard" />
-                    <Tab label="🏆 Promotions" />
+                    {isHR && <Tab label="⭐ Ratings Dashboard" />}
+                    {isHR && <Tab label="🏆 Promotions" />}
                 </Tabs>
             </Paper>
 
@@ -372,7 +372,7 @@ const PerformanceManagement = () => {
             )}
 
             {/* ── Tab 1: Ratings Dashboard ───────────────────────────────── */}
-            {tab === 1 && (
+            {tab === 1 && isHR && (
                 <Grid container spacing={3}>
                     {/* Overall Avg */}
                     <Grid item xs={12} md={4}>
@@ -475,7 +475,7 @@ const PerformanceManagement = () => {
             )}
 
             {/* ── Tab 2: Promotions ─────────────────────────────────────── */}
-            {tab === 2 && (
+            {tab === 2 && isHR && (
                 <Grid container spacing={3}>
                     <Grid item xs={12}>
                         <Paper elevation={2} sx={{ p: 3 }}>
